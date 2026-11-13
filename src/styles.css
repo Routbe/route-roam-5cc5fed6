@@ -27,6 +27,12 @@
 @import "@fontsource/jetbrains-mono/600.css";
 @plugin "@tailwindcss/typography";
 
+/* Metric-matched fallbacks: until the web fonts arrive, text takes exactly the
+   space it will occupy afterwards, so the font swap does not move the page (CLS). */
+@font-face { font-family: "Work Sans Fallback"; src: local("Arial"), local("Helvetica"), local("Roboto"); size-adjust: 115.6%; ascent-override: 80.4%; descent-override: 21%; line-gap-override: 0%; }
+@font-face { font-family: "Instrument Serif Fallback"; src: local("Times New Roman"), local("Times"), local("Noto Serif"); size-adjust: 88.6%; ascent-override: 111.7%; descent-override: 35%; line-gap-override: 0%; }
+@font-face { font-family: "JetBrains Mono Fallback"; src: local("Courier New"), local("Courier"), local("Roboto Mono"); size-adjust: 100%; ascent-override: 102%; descent-override: 30%; line-gap-override: 0%; }
+
 :root {
   --social-grid-ink: oklch(1 0 0);
   --social-grid-shade: oklch(0 0 0 / .68);
@@ -320,11 +326,11 @@ textarea[data-tour^="cc-"] {
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
 
-  --font-sans: "Work Sans", system-ui, sans-serif;
-  --font-serif: "Instrument Serif", Georgia, serif;
-  --font-display: "Instrument Serif", Georgia, serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
-  --font-brand: "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: "Work Sans", "Work Sans Fallback", system-ui, sans-serif;
+  --font-serif: "Instrument Serif", "Instrument Serif Fallback", Georgia, serif;
+  --font-display: "Instrument Serif", "Instrument Serif Fallback", Georgia, serif;
+  --font-mono: "JetBrains Mono", "JetBrains Mono Fallback", ui-monospace, monospace;
+  --font-brand: "JetBrains Mono", "JetBrains Mono Fallback", ui-monospace, monospace;
 
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -1671,6 +1677,8 @@ html[data-liquid]:not([data-theme="mechanical"]) [style*="--lg-filter"] { backdr
   --hardware-cavity: oklch(.1 0 0 / .72);
   --hardware-dark-edge: oklch(0 0 0 / .8);
   --hardware-thumb: oklch(.88 .006 160);
+  /* A dimmer sheen keeps light tab text at 7:1 or more on the selected marker (WCAG 1.4.6 AAA). */
+  --hardware-metal: linear-gradient(160deg, oklch(1 0 0 / .2), var(--spatial-base) 48%, var(--spatial-indicator));
 }
 @utility spatial-button {
   border: 1px solid var(--hardware-edge);
@@ -1971,11 +1979,11 @@ html[data-liquid]:not([data-theme="mechanical"]) [style*="--lg-filter"] { backdr
 .home-ledge { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 10px; box-shadow: 0 2px 0 hsl(var(--border)), 0 4px 14px -10px hsl(var(--foreground) / .25); transition: transform .18s ease, box-shadow .18s ease; }
 .home-ledge:hover { transform: translateY(-2px); box-shadow: 0 4px 0 hsl(var(--border)), 0 10px 24px -14px hsl(var(--foreground) / .3); }
 .home-vault { background: repeating-linear-gradient(135deg, hsl(var(--muted) / .5) 0 8px, hsl(var(--card)) 8px 16px); }
-.home-redact { background: hsl(var(--muted)); border-radius: 3px; padding: 0 .4rem; }
+.home-redact { color: hsl(var(--foreground)); background: hsl(var(--muted)); border-radius: 3px; padding: 0 .4rem; }
 .home-card { aspect-ratio: 1.586; border-radius: 14px; padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid hsl(var(--border)); box-shadow: 0 2px 0 hsl(var(--border)), 0 18px 30px -18px hsl(var(--foreground) / .45); transition: transform .3s cubic-bezier(.2,.8,.2,1); }
 .home-card:hover { transform: perspective(800px) rotateX(4deg) rotateY(-6deg) translateY(-3px); }
 .home-card-public { background: hsl(var(--card)); color: hsl(var(--foreground)); }
-.home-card-stealth { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
+.home-card-stealth { background: hsl(var(--muted)); color: hsl(var(--foreground) / 0.8); }
 .home-card-key { --home-key-ink: oklch(0.12 0.005 260); --home-key-text: oklch(0.92 0.01 90); background: linear-gradient(160deg, oklch(0.2 0.005 260), var(--home-key-ink)); color: var(--home-key-text); border-color: oklch(0.32 0.005 260); }
 .home-chip { width: 38px; height: 28px; border-radius: 5px; background: linear-gradient(135deg, hsl(var(--muted-foreground) / .6), hsl(var(--muted-foreground) / .2)); }
 @media (prefers-reduced-motion: reduce) { .home-ledge, .home-card { transition: none; } .home-card:hover, .home-ledge:hover { transform: none; } }

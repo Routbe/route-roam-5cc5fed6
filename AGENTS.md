@@ -102,4 +102,4 @@ use the editor.
 - Neon-fallback photo uploads are pruned only through public.rout_prune_avatar_uploads (db/0252), which keeps every photo a profile, draft, workspace or app logo still references; without it nothing is pruned. Why: a member's uploads serve several workspaces, so a per-member count deleted logos still in use.
 
 ## Booking phases B–G
-- Booking E2EE: keys recoverable only via recovery-mpc shards; blobs/RVE1 always hybrid ML-KEM-1024+X25519; booking and bitmap traffic padded to fixed sizes with constant response time; Omni worker never holds vault/device keys or plaintext. Why: privacy-preserving recovery, harvest-now-decrypt-later, side channels, blind worker.
+- Phase B–G security rules live in src/lib/booking-engine/AGENTS.md and bind every booking, recovery and crypto change. Why: the owner's hard requirements stay in one scoped place.
