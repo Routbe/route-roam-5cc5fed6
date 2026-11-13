@@ -196,7 +196,7 @@ export function Footer() {
               href="https://delplanche.cloud"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-foreground underline underline-offset-4"
+              className="inline-flex min-h-11 items-center align-middle text-foreground underline underline-offset-4"
             >
               delplanche.cloud
             </a>
