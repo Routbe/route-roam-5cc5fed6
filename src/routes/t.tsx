@@ -192,8 +192,8 @@ function CardTap() {
             <ShieldCheck className="relative h-16 w-16 text-primary" strokeWidth={1.5} aria-hidden />
           </div>
           <div className="space-y-1">
-            <h1 id="tap-verified" className="text-2xl font-semibold tracking-tight">Authentic ROUT Card</h1>
-            <p className="text-xs font-medium uppercase tracking-[0.2em] text-primary">Cryptographically Verified</p>
+            <h1 id="tap-verified" className="text-2xl font-semibold tracking-tight">{t("cardTap.verified.title")}</h1>
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-primary">{t("cardTap.verified.badge")}</p>
           </div>
           <div className="w-full rounded-2xl border border-border bg-card p-4 text-left text-sm text-muted-foreground">
             <p>{t("cardTap.verified.body")}</p>

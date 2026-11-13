@@ -324,3 +324,19 @@ Bijlage O — Fase B gestart: herstel 2-van-4 met de ROUT Card en versleutelde b
 - Code (klaar, getest): `recovery-mpc.ts` versie 2 (4 delen, drempel 2; de factorenset zit in de AAD van de Master Key; versie 1 opent ongewijzigd; een kaart op een versie-1-ceremonie wordt geweigerd). De crypto-werker neemt `cardSecret` aan bij opzetten en herstellen en wist het na gebruik. `ceremony.functions.ts` weigert een kaartdeel (`strict()`) tot 0266 live is, zodat geen ceremonie half wordt opgeslagen.
 - `db-pending/0266_recovery_card_factor.sql` (EXPAND, **niet op Neon**): kolommen `card_shard` en `ceremony_version` met een koppelende controle, een opslagfunctie met 9 argumenten, `*_v2`-leesfuncties; de bestaande opslag (8 argumenten) schrijft nu expliciet versie 1 en de bestaande leesfuncties tonen alleen versie 1, zodat code op niveau 0264 nooit een versie-2-ceremonie verkeerd leest. Alles `search_path = pg_catalog, pg_temp`, EXECUTE alleen `rout_app`. Test: `src/test/recovery-card-factor-0266.test.ts`.
 - Versleutelde boekingsinhoud (`src/lib/crypto-enclave/booking-seal.ts`, klaar, getest, nog niet aangesloten): titel, beschrijving, notitie en intake-antwoorden als RVE1-envelop, soort `bkh` (sleutel van de host, zaad versleuteld onder de werkruimtesleutel en dus mee hersteld) en `bkg` (sleutel uit het `#bg1=`-fragment van de beheerlink van de gast). Geen enkele serverhouder mag ze openen of verzegelen; de lengte verraadt alleen een vaste emmer (1, 4 of 16 KiB). Het grootboek bewaart voortaan een vingerafdruk over de versleutelde tekst; 0265 moet daarop worden aangepast voor GO.
+
+
+## Bijlage: migratiegeschiedenis nagekeken (2026-11-13, alleen lezen)
+
+Correctie op de vorige bijlage: 0266 staat live op Neon (21:45) en in `db/`; `CODE_SCHEMA_LEVEL` is 0266. In `db-pending/` wachten 0265 (grootboek, `greatest`/`least` al zonder schema) en 0267. Neon telt 262 rijen in `public.schema_migrations`; de 228 tabellen/views op Neon zijn gelijk aan `db/schema.snapshot.json` (alleen `schema_migrations` zelf ontbreekt in de snapshot).
+
+De vier bekende afwijkingen staan elk met exacte bestandsnaam en Neon-checksum in `scripts/migration-history-allowlist.ts`. Checksum = SHA-256 van de ruwe bytes (`checksumOf`).
+
+| Bestand | Neon (checksum, uitgevoerd) | Code nu | Effect in Neon |
+|---|---|---|---|
+| 91_shadowban.sql | 4187079478ef…47c9, 2026-10-12 06:05 | `db/`, f2d63443…a95a (achteraf bewerkt) | `profiles.is_shadowbanned` bestaat |
+| 95_question_stories.sql | 9e282f2bb6c5…a5, 2026-10-19 20:04 | niet in `db/`; `db-archive/` e4099b8b…54d4 | `profile_questions.story_until` bestaat (0000_baseline live 2026-10-30) |
+| 0169_workspace_icon.sql | 9568b4ef232a…43f7, 2026-11-02 11:30 | niet in `db/`; `db-archive/` 11a7dd5c…021b; heruitgegeven als 0172 (live 2026-11-03) | `workspaces.icon` bestaat |
+| 0209_recovery_vault_pairwise.sql | 44ae1db9679d…87ac, 2026-11-07 14:16 | `db/`, 3f48347e…ffa5 (achteraf bewerkt) | geen `*recovery_vault*`-tabellen meer (0243 live 2026-11-12); `rout_pairwise_register` SECURITY DEFINER met `search_path=pg_catalog, pg_temp` (0254 live 2026-11-13) |
+
+Leesvragen: `public.schema_migrations`, `information_schema.columns`, `pg_proc.proconfig`, `pg_class`, in een read-only batch. Niets gewijzigd; Neon-rijen nooit herschreven.

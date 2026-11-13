@@ -1,6 +1,6 @@
 # ROUT QA-draaiboek — praktijktests op het Vercel-deploy
 
-Versie 2026-11-13 · schemaversie 0254 · uit te voeren door de eigenaar op het eigen Vercel-deploy.
+Versie 2026-11-13 · schemaversie 0266 · uit te voeren door de eigenaar op het eigen Vercel-deploy.
 
 Dit draaiboek test wat alleen met echte toestellen, echte kaarten en een echte database kan. Elke stap heeft een verwacht resultaat. Wijkt het af, noteer dan wat je zag en stop met dat onderdeel.
 
@@ -31,8 +31,8 @@ Dit draaiboek test wat alleen met echte toestellen, echte kaarten en een echte d
 
 | ID | Stap | Verwacht |
 | --- | --- | --- |
-| 0.1 | Open `https://<jouw-domein>/api/public/health` | `status` is `operational`, `schema` is `0254` |
-| 0.2 | Staat `schema` lager dan `0254`? | Het deploy draait oude code: eerst opnieuw deployen, dan pas verder |
+| 0.1 | Open `https://<jouw-domein>/api/public/health` | `status` is `operational`, `schema` is `0266` |
+| 0.2 | Staat `schema` lager dan `0266`? | Het deploy draait oude code: eerst opnieuw deployen, dan pas verder |
 
 ## 1. Registratie met passkey
 

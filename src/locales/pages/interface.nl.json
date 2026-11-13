@@ -253,5 +253,7 @@
   "cardTap.stepUpDenied.body": "Deze tik kon je bevestiging niet afronden. Gebruik je eigen, actieve ROUT Card, houd ze opnieuw tegen je telefoon, of begin opnieuw als de tijd verstreken is.",
   "cardTap.tapLimited.body": "Te veel controles kort na elkaar. Probeer het zo opnieuw.",
   "cardTap.missing.body": "Open deze pagina door je ROUT Card tegen je telefoon te houden.",
-  "cardTap.denied.body": "Deze tik kon niet bevestigd worden. Houd de kaart opnieuw tegen je telefoon; een gekopieerde of oude link werkt nooit."
+  "cardTap.denied.body": "Deze tik kon niet bevestigd worden. Houd de kaart opnieuw tegen je telefoon; een gekopieerde of oude link werkt nooit.",
+  "cardTap.verified.title": "Echte ROUT Card",
+  "cardTap.verified.badge": "Cryptografisch geverifieerd"
 }

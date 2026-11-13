@@ -253,5 +253,7 @@
   "cardTap.stepUpDenied.body": "Ce passage n'a pas pu finaliser votre confirmation. Utilisez votre propre ROUT Card active, approchez-la à nouveau de votre téléphone, ou recommencez si le délai est écoulé.",
   "cardTap.tapLimited.body": "Trop de vérifications en peu de temps. Réessayez dans un instant.",
   "cardTap.missing.body": "Ouvrez cette page en approchant votre ROUT Card de votre téléphone.",
-  "cardTap.denied.body": "Ce passage n'a pas pu être confirmé. Approchez à nouveau la carte de votre téléphone ; un lien copié ou ancien ne fonctionne jamais."
+  "cardTap.denied.body": "Ce passage n'a pas pu être confirmé. Approchez à nouveau la carte de votre téléphone ; un lien copié ou ancien ne fonctionne jamais.",
+  "cardTap.verified.title": "ROUT Card authentique",
+  "cardTap.verified.badge": "Vérifiée cryptographiquement"
 }
