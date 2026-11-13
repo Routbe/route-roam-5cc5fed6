@@ -269,8 +269,16 @@ describe("rolling window in business days", () => {
 
   it("booking beyond the business-day window is too far", async () => {
     await setType(SOLO, "horizon_business_days = 1, rules_timezone = 'Europe/Brussels'");
-    expect((await create(SOLO, at("10:00")))["reason"]).toBe("too_far");
-    expect((await hold(SOLO, at("10:00")))["reason"]).toBe("too_far");
+    // A weekday at least five calendar days out is always past one business day,
+    // whatever weekday or hour the suite runs (from Friday evening the window reaches Monday).
+    const far = (() => {
+      for (let o = 5; ; o++) {
+        const d = new Date(Date.now() + o * 86400000);
+        if (d.getUTCDay() >= 1 && d.getUTCDay() <= 5) return d.toISOString().slice(0, 10);
+      }
+    })();
+    expect((await create(SOLO, at("10:00", far)))["reason"]).toBe("too_far");
+    expect((await hold(SOLO, at("10:00", far)))["reason"]).toBe("too_far");
   });
 });
 
