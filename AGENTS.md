@@ -101,8 +101,5 @@ use the editor.
 ## Uploaded photos
 - Neon-fallback photo uploads are pruned only through public.rout_prune_avatar_uploads (db/0252), which keeps every photo a profile, draft, workspace or app logo still references; without it nothing is pruned. Why: a member's uploads serve several workspaces, so a per-member count deleted logos still in use.
 
-## Booking phases B–G (binding before any build)
-- Client-side E2EE keys for bookings are recoverable only through the existing recovery-ceremony shards (recovery-mpc.ts); no server-only escrow. Why: hardware loss must not lose data without weakening privacy.
-- Every client-side E2EE blob and RVE1 envelope uses the hybrid ML-KEM-1024 + X25519 suite; no classical-only fallback. Why: harvest-now-decrypt-later.
-- Booking and availability-bitmap requests and responses use fixed byte-length padding and constant-time response shaping. Why: network side channels must not reveal content or occupancy.
-- The Omni worker is a blind pipe: it never receives vault keys, device keys or plaintext booking payloads. Why: a compromised worker host must learn nothing personal.
+## Booking phases B–G
+- Booking E2EE: keys recoverable only via recovery-mpc shards; blobs/RVE1 always hybrid ML-KEM-1024+X25519; booking and bitmap traffic padded to fixed sizes with constant response time; Omni worker never holds vault/device keys or plaintext. Why: privacy-preserving recovery, harvest-now-decrypt-later, side channels, blind worker.
