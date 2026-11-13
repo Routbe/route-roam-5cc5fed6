@@ -31,9 +31,11 @@ describe("workspace logo after a Studio publish", () => {
 
 describe("Postgres applies the same logo patterns", () => {
   let db: PGlite;
+  // Start the database before the cases run, so a busy full suite cannot push
+  // PGlite's start-up past a single case's time limit.
   beforeAll(async () => {
-    db = new PGlite();
-  });
+    db = await PGlite.create();
+  }, 60_000);
   afterAll(async () => {
     await db.close();
   });
