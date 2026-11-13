@@ -1677,6 +1677,8 @@ html[data-liquid]:not([data-theme="mechanical"]) [style*="--lg-filter"] { backdr
   --hardware-cavity: oklch(.1 0 0 / .72);
   --hardware-dark-edge: oklch(0 0 0 / .8);
   --hardware-thumb: oklch(.88 .006 160);
+  /* A dimmer sheen keeps light tab text at 7:1 or more on the selected marker (WCAG 1.4.6 AAA). */
+  --hardware-metal: linear-gradient(160deg, oklch(1 0 0 / .2), var(--spatial-base) 48%, var(--spatial-indicator));
 }
 @utility spatial-button {
   border: 1px solid var(--hardware-edge);
