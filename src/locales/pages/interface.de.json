@@ -253,5 +253,7 @@
   "cardTap.stepUpDenied.body": "Dieses Antippen konnte Ihre Bestätigung nicht abschließen. Verwenden Sie Ihre eigene, aktive ROUT Card, halten Sie sie erneut an Ihr Telefon oder beginnen Sie neu, wenn die Zeit abgelaufen ist.",
   "cardTap.tapLimited.body": "Zu viele Prüfungen in kurzer Zeit. Versuchen Sie es gleich erneut.",
   "cardTap.missing.body": "Öffnen Sie diese Seite, indem Sie Ihre ROUT Card an Ihr Telefon halten.",
-  "cardTap.denied.body": "Dieses Antippen konnte nicht bestätigt werden. Halten Sie die Karte erneut an Ihr Telefon; ein kopierter oder alter Link funktioniert nie."
+  "cardTap.denied.body": "Dieses Antippen konnte nicht bestätigt werden. Halten Sie die Karte erneut an Ihr Telefon; ein kopierter oder alter Link funktioniert nie.",
+  "cardTap.verified.title": "Echte ROUT Card",
+  "cardTap.verified.badge": "Kryptografisch verifiziert"
 }

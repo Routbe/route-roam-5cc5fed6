@@ -253,5 +253,7 @@
   "cardTap.stepUpDenied.body": "This tap could not complete your confirmation. Use your own active ROUT Card, hold it against your phone again, or start over if the time has run out.",
   "cardTap.tapLimited.body": "Too many checks in a short time. Try again in a moment.",
   "cardTap.missing.body": "Open this page by holding your ROUT Card against your phone.",
-  "cardTap.denied.body": "This tap could not be confirmed. Hold the card against your phone again; a copied or old link never works."
+  "cardTap.denied.body": "This tap could not be confirmed. Hold the card against your phone again; a copied or old link never works.",
+  "cardTap.verified.title": "Authentic ROUT Card",
+  "cardTap.verified.badge": "Cryptographically verified"
 }
