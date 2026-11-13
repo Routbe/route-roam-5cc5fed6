@@ -1,4 +1,5 @@
 import "./lib/error-capture";
+import { installRequestScopedTranslator } from "./lib/i18n-request.server";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
@@ -6,6 +7,9 @@ import { renderErrorPage } from "./lib/error-page";
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
 };
+
+// Server renders translate direct i18n.t() calls in the request's own locale.
+installRequestScopedTranslator();
 
 let serverEntryPromise: Promise<ServerEntry> | undefined;
 
@@ -44,9 +48,6 @@ function isH3SwallowedErrorBody(body: string): boolean {
   }
 }
 
-// Hosting compresses every response at the edge. Never compress a body (gzip, brotli,
-// CompressionStream) or set content-encoding here or in a server route: the body gets encoded
-// twice and renders garbled.
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
