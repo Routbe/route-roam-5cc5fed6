@@ -110,5 +110,8 @@
 - [x] db-pending/README en QA-draaiboek op stand 0266 gezet
 - [x] Volledige testronde: 1 rood (verouderde telling kaarttap-teksten) hersteld
 - [x] /t vaste Engelse tekst vertaald; inzoomen op telefoon toegestaan; taalkeuze metadata = root
-- [ ] Fase A meetronde + controlerapport per formaat
-- [ ] Fase A herstel (scrollsectie mobiel, tabellen, animaties), teksten, deelafbeeldingen per pagina/taal
+- [x] Fase A meetronde (11 formaten: home, discover, about, info, bookings-info): geen overloop/afsnijding, CLS ≤ 0,1; te kleine tikdoelen (footer-credit, kruimelpad SEO-pagina's) hersteld
+- [ ] Fase A: onthul-animaties (dsc-reveal/omni-reveal) verbergen inhoud tot de pagina-code geladen is; zichtbaar laten zonder JS
+- [ ] Fase A: CLS /info (tot 0,096 op 1024) en /discover/bookings (tot 0,2 op 360) omlaag
+- [ ] Fase A: contrastmeting AAA met betrouwbare methode (verlopen/achtergrondafbeeldingen) en teksten nalopen
+- [ ] Boekingspagina's meten (geblokkeerd: preview heeft geen database)
