@@ -20,6 +20,9 @@ import { useRouterState } from "@tanstack/react-router";
 import { DevModeToggle } from "@/components/DevModeToggle";
 
 import appCss from "../styles.css?url";
+import workSans400 from "@fontsource/work-sans/files/work-sans-latin-400-normal.woff2?url";
+import instrumentSerif400 from "@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2?url";
+import jetbrainsMono400 from "@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { BOOT_SCRIPT, DEFAULT_UI_PREFERENCES, isInternalInterface } from "@/lib/internal-interface-theme";
@@ -166,6 +169,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
+      // The three first-screen faces load in parallel with the stylesheet instead of after it.
+      ...[workSans400, instrumentSerif400, jetbrainsMono400].map((href) => ({ rel: "preload", as: "font", type: "font/woff2", href, crossOrigin: "anonymous" as const })),
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "alternate", type: "application/json", href: "/.well-known/rout-agent.json", title: "ROUT agent sandbox (AI agents: build a workspace without an account)" },
       { rel: "icon", href: "/favicon.png?v=rout-transparent-3", type: "image/png", sizes: "64x64" },
