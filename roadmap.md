@@ -104,3 +104,11 @@
 - [ ] Fase B: gastcontact (e-mail) als kluisverwijzing + blinde index voor limieten per gast
 - [ ] Fase B+: vaste byte-lengtes (padding) en constante responstijden voor boekings- en bitmasker-API's
 - [ ] Fase B+: Omni-werker als blinde doorgeefluik, nooit toegang tot persoonlijke sleutels
+
+## Stap 0 + Fase A (GO 2026-11-13)
+- [x] Vier migratie-afwijkingen alleen-lezen vastgelegd (HANDOVER-bijlage)
+- [x] db-pending/README en QA-draaiboek op stand 0266 gezet
+- [x] Volledige testronde: 1 rood (verouderde telling kaarttap-teksten) hersteld
+- [x] /t vaste Engelse tekst vertaald; inzoomen op telefoon toegestaan; taalkeuze metadata = root
+- [ ] Fase A meetronde + controlerapport per formaat
+- [ ] Fase A herstel (scrollsectie mobiel, tabellen, animaties), teksten, deelafbeeldingen per pagina/taal
