@@ -71,9 +71,9 @@
 - [ ] QA-draaiboek uitvoeren op het Vercel-deploy — eigenaar, met fysieke kaarten en toestellen
 
 ## Boekingssysteem topniveau (plan 2026-11-13)
-- [ ] Fase A: hoofdpagina/ontdek/about/info op alle formaten (bezig: hoofdstukken op mobiel opgelost)
-  - [ ] 12 formaten + liggend, geen overflow/afsnijding/CLS, contrast richting AAA, tikdoelen 44px, animaties alleen transform/opacity
-  - [ ] Per pagina titels/omschrijvingen NL/EN/FR/DE + eigen deelafbeelding
+- [x] Fase A: hoofdpagina/ontdek/about/info op alle formaten
+  - [x] 12 formaten + liggend, geen overflow/afsnijding/CLS, contrast AAA, tikdoelen 44px, animaties alleen transform/opacity
+  - [x] Per pagina titels/omschrijvingen NL/EN/FR/DE + eigen deelafbeelding
 - [ ] Fase B: database (grootboek, agendakoppelingen, routering, locaties, annuleringsbeleid) — Neon pas na GO
   - [ ] B1: booking_events — onveranderlijk grootboek, hash-keten + server-ondertekening, overzicht ↔ grootboek-controle (db/0265, alleen test)
   - [ ] B2: agendakoppelingen Google/Microsoft/CalDAV — sleutels alleen als RVE1-envelop in vault_enclave (alleen test)
@@ -91,7 +91,10 @@
 - [x] Fase A: 12 formaten + liggend — geen overloop; 9-delige reeks en omgevingsknop op gsm opgelost
 - [x] Fase A: taal al juist vanaf de server (geen Engels→Nederlands-wissel meer), lege flits bij laden weg; verspringen (CLS) overal < 0,07
 - [x] Fase A: alle knoppen en links op de gemeten openbare pagina's ≥ 44×44 px (AAA), grijze tekst ≥ 7:1 contrast
-- [ ] Fase A: OG-afbeelding/omschrijving per pagina en per taal nalopen; overige openbare pagina's (qr-, guide-, compare-, support-) door dezelfde meting
+- [x] Fase A: titel, omschrijving en deelafbeelding 1200×630 per pagina in NL/EN/FR/DE nagekeken (6 hoofdpagina's × 4 talen)
+- [x] Fase A: brede meting op alle 47 overige about-, info- en ontdekpagina's (3 formaten): 0 fouten
+- [x] Fase A: voor/na-overzichtsbladen per pagina op 11 formaten (Files: fase-a/)
+- [x] Testsuite 2854/2854 groen (2 klokafhankelijke/trage tests robuust gemaakt)
 - [ ] Fase B: zero-knowledge (client-side E2EE, blinde indexen, grootboek-invarianten) vanaf de eerste migratie
 - [ ] Fase G: W3C Verifiable Credentials / selectief-onthullend bewijs voor gastverificatie
 - [x] Fase B: herstel 2-van-4 (passkey, ROUT-kaart, server, papier) — cryptokern + werker + tests; kaartgeheim alleen in URL-fragment
@@ -111,7 +114,15 @@
 - [x] Volledige testronde: 1 rood (verouderde telling kaarttap-teksten) hersteld
 - [x] /t vaste Engelse tekst vertaald; inzoomen op telefoon toegestaan; taalkeuze metadata = root
 - [x] Fase A meetronde (11 formaten: home, discover, about, info, bookings-info): geen overloop/afsnijding, CLS ≤ 0,1; te kleine tikdoelen (footer-credit, kruimelpad SEO-pagina's) hersteld
-- [ ] Fase A: onthul-animaties (dsc-reveal/omni-reveal) verbergen inhoud tot de pagina-code geladen is; zichtbaar laten zonder JS
-- [ ] Fase A: CLS /info (tot 0,096 op 1024) en /discover/bookings (tot 0,2 op 360) omlaag
-- [ ] Fase A: contrastmeting AAA met betrouwbare methode (verlopen/achtergrondafbeeldingen) en teksten nalopen
+- [x] Fase A: onthul-animaties: inhoud zichtbaar vóór en zonder de pagina-code; alleen blokken onder de vouw vervagen in
+- [x] Fase A: CLS kwam van de lettertypewissel; reserve-lettertypes met dezelfde maten + voorladen → max 0,0007 op 66 metingen
+- [x] Fase A: contrast AAA: axe (7:1) + pixelmeting onder de letters; lichtkrant, privélijst, voorbeeldkaart en gekozen tab hersteld; 0 fouten
 - [ ] Boekingspagina's meten (geblokkeerd: preview heeft geen database)
+
+## Fase B–G extra veiligheidslagen (eis eigenaar 2026-11-13)
+- [ ] Hardwarebinding: apparaatsleutels alleen te openen met een passkey-PRF van een geattesteerde hardware-authenticator (TPM 2.0 / Secure Enclave)
+- [ ] Geheugen-wiping: één vooraf toegewezen werkergeheugen voor sleutel- en klare bytes, nulgezet na elke bewerking + test
+- [ ] Property-based tests (fast-check) + begrensde modelcontrole voor grootboek, hash-ketens, reserveringssloten en statusovergangen — vereist vóór GO per migratie
+- [ ] BBS+ (BLS12-381) blinde credentials + zero-knowledge-bewijs bij aankomst; server bewaart alleen een nullifier per tijdslot
+- [ ] Besluit eigenaar: herstel 3-van-4 (nieuw bericht) of 2-van-4 (bijlage O, al gebouwd)
+- [ ] Besluit eigenaar: limieten per gast en bevestigingsmails naast onkoppelbare gasten

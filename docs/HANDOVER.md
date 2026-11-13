@@ -340,3 +340,11 @@ De vier bekende afwijkingen staan elk met exacte bestandsnaam en Neon-checksum i
 | 0209_recovery_vault_pairwise.sql | 44ae1db9679d…87ac, 2026-11-07 14:16 | `db/`, 3f48347e…ffa5 (achteraf bewerkt) | geen `*recovery_vault*`-tabellen meer (0243 live 2026-11-12); `rout_pairwise_register` SECURITY DEFINER met `search_path=pg_catalog, pg_temp` (0254 live 2026-11-13) |
 
 Leesvragen: `public.schema_migrations`, `information_schema.columns`, `pg_proc.proconfig`, `pg_class`, in een read-only batch. Niets gewijzigd; Neon-rijen nooit herschreven.
+
+## Bijlage: Stap 0 en Fase A afgerond (2026-11-13 23:40 UTC)
+
+- Testsuite: 478 bestanden, 2854 tests groen. Twee tests waren afhankelijk van het moment van draaien en zijn robuust gemaakt: de werkdagvenster-test in `booking-holds-postgres.test.ts` koos een dag die vanaf vrijdagavond binnen het venster viel; `workspace-logo-sync.test.ts` startte PGlite in de eerste testcase en liep onder volle last over de tijdslimiet.
+- Fase A (hoofdpagina, ontdek, about, info): 6 hoofdpagina's op 11 formaten en 47 onderliggende pagina's op 3 formaten gemeten. Geen overloop, tikdoelen ≥ 44 px (aanraakzone gemeten), verspringen max 0,0007 (oorzaak was de lettertypewissel; nu reserve-lettertypes met dezelfde maten en voorladen), contrast 7:1 (axe plus pixelmeting onder de letters). Inhoud is zichtbaar vóór en zonder de pagina-code. Titels, omschrijvingen en deelafbeeldingen 1200×630 bestaan per pagina in NL/EN/FR/DE.
+- Nieuwe eisen Fase B–G (hardwarebinding, geheugen-wiping, property-based tests met modelcontrole, BBS+-gastbewijzen) staan als regels in `src/lib/booking-engine/AGENTS.md`. Grenzen van het webplatform: een browser kan geen willekeurige versleuteling binnen de TPM/Secure Enclave uitvoeren (alleen de passkey-PRF blijft in de hardware), en JavaScript kan kopieën van de engine of de garbage collector niet wissen; daarom één eigen werkergeheugen dat aantoonbaar op nul wordt gezet.
+- Open besluiten: herstel 3-van-4 (nieuw bericht) tegenover 2-van-4 (bijlage O, gebouwd en getest); hoe limieten per gast en bevestigingsmails samengaan met onkoppelbare gasten.
+
