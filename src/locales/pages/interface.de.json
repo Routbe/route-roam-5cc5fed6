@@ -219,10 +219,10 @@
   "cardTap.confirm.no": "Nein, das war ich nicht",
   "cardTap.declined.title": "Nichts bestätigt",
   "cardTap.declined.body": "Die Anfrage verfällt innerhalb von 5 Minuten von selbst. Haben Sie das nicht selbst angefordert? Prüfen Sie die aktiven Sitzungen in Ihrem Konto und melden Sie unbekannte Geräte ab.",
-  "cardTap.handoff.title": "Karte übergeben",
+  "cardTap.handoff.title": "Diese ROUT Card für Ihren Wiederherstellungstresor verwenden?",
   "cardTap.handoff.setup": "Ihr anderes Fenster richtet Ihren Wiederherstellungstresor ein und fragt diese Karte als viertes Teil an.",
-  "cardTap.handoff.restore": "Ihr anderes Fenster stellt Ihren Hauptschlüssel wieder her und fragt diese Karte als eines der zwei Teile an.",
-  "cardTap.handoff.login": "Ihr anderes Fenster meldet Sie per Wiederherstellung an und fragt diese Karte als eines der zwei Teile an.",
+  "cardTap.handoff.restore": "Ihr anderes Fenster stellt Ihren Hauptschlüssel wieder her und fragt diese Karte als eines der drei Teile an.",
+  "cardTap.handoff.login": "Ihr anderes Fenster meldet Sie per Wiederherstellung an und fragt diese Karte als eines der drei Teile an.",
   "cardTap.handoff.private": "Das Kartengeheimnis geht verschlüsselt direkt an dieses Fenster in diesem Browser. Es verlässt Ihr Gerät nie, auch nicht zu ROUT.",
   "cardTap.handoff.yes": "Ja, diese Karte verwenden",
   "cardTap.handoff.no": "Nein",
@@ -256,7 +256,5 @@
   "cardTap.denied.body": "Dieses Antippen konnte nicht bestätigt werden. Halten Sie die Karte erneut an Ihr Telefon; ein kopierter oder alter Link funktioniert nie.",
   "cardTap.verified.title": "Echte ROUT Card",
   "cardTap.verified.badge": "Kryptografisch verifiziert",
-  "cardTap.handoff.body": "Deine ROUT Card wurde verschlüsselt an deinen Wiederherstellungstresor übergeben. Geh zurück zu diesem Tab, um fortzufahren. Diesen Tab kannst du schließen.",
-  "cardTap.handoff.failed": "Deine Karte konnte nicht an deinen Wiederherstellungstresor übergeben werden. Geh zurück zu diesem Tab und tippe deine Karte erneut an.",
-  "cardTap.handoff.denied": "Das ist nicht deine eigene, aktive ROUT Card. Dein Wiederherstellungstresor kann nur mit deiner eigenen Karte eingerichtet werden."
+  "cardTap.handoff.notOwn.body": "Das ist nicht Ihre eigene, aktive ROUT Card. Ihr Wiederherstellungstresor kann nur mit Ihrer eigenen Karte eingerichtet werden. Das Kartengeheimnis wurde aus diesem Fenster gelöscht."
 }
