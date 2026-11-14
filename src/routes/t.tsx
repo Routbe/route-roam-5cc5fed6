@@ -174,7 +174,7 @@ function CardTap() {
       handoff_many: ["cardTap.handoff.many.title", "cardTap.handoff.many.body"],
       handoff_declined: ["cardTap.handoff.declined.title", "cardTap.handoff.declined.body"],
     };
-    const [title, body] = busy ? ["cardTap.checking", null] : text[view.kind as Exclude<typeof view.kind, "handing_off">];
+    const [title, body]: [string, string | null] = busy ? ["cardTap.checking", null] : text[view.kind as Exclude<typeof view.kind, "handing_off">];
     return (
       <main className="mx-auto flex min-h-[80vh] max-w-md flex-col items-center justify-center gap-4 p-6 text-center">
         {busy ? (
