@@ -165,7 +165,7 @@ describe("3-of-4 recovery: properties over generated inputs", () => {
         if (set.length >= VERSION_THRESHOLD[3]) expect([...(await attempt)]).toEqual([...mk]);
         else await expect(attempt).rejects.toThrow(RecoveryError);
       }),
-      { numRuns: 40 },
+      { numRuns: 150 },
     );
   }, 120_000);
 
