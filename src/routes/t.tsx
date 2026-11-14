@@ -47,7 +47,8 @@ type View =
   | { kind: "confirm_step_up" | "confirming_step_up"; p: string; m: string }
   | { kind: "step_up_declined" }
   | { kind: "handing_off" }
-  | { kind: "handed_off" | "handoff_failed" | "handoff_denied" }
+  | { kind: "handoff_confirm"; listener: CardListener; p: string; m: string }
+  | { kind: "handed_off" | "handoff_failed" | "handoff_denied" | "handoff_many" | "handoff_declined" }
   | { activation: CardActivationResult["status"] }
   | CardTapResult;
 
@@ -59,6 +60,13 @@ function CardTap() {
   const [code, setCode] = useState("");
   const [view, setView] = useState<View>({ kind: "checking" });
   const started = useRef(false);
+  // The recovery secret waits here only until the member answers; wiped on every path and on leaving.
+  const pendingSecret = useRef<Uint8Array | null>(null);
+  const dropSecret = () => {
+    pendingSecret.current?.fill(0);
+    pendingSecret.current = null;
+  };
+  useEffect(() => dropSecret, []);
 
   useEffect(() => {
     if (started.current) return;
@@ -96,36 +104,77 @@ function CardTap() {
         .catch(() => setView({ status: "denied" }));
     };
     if (!secret) return proceed();
-    // A tab waiting for this card gets its recovery secret; otherwise it is wiped at once.
+    // Is another window of this browser waiting for the card? Otherwise the secret is wiped at once.
+    pendingSecret.current = secret;
     setView({ kind: "handing_off" });
-    void handOff(secret, { p, m }).then((outcome) => {
-      if (outcome === "none") proceed();
-      else setView({ kind: outcome });
-    });
+    findCardListeners()
+      .then((listeners) => {
+        if (listeners.length === 0) {
+          dropSecret();
+          return proceed();
+        }
+        if (listeners.length > 1) {
+          // Never guess which window gets the card.
+          dropSecret();
+          return setView({ kind: "handoff_many" });
+        }
+        setView({ kind: "handoff_confirm", listener: listeners[0] as CardListener, p, m });
+      })
+      .catch(() => {
+        dropSecret();
+        proceed();
+      });
   }, [verify, pendingStepUp]);
 
-  /** Wipes `secret` in every case. */
-  async function handOff(secret: Uint8Array, tap: { p: string; m: string }): Promise<"none" | "handed_off" | "handoff_failed" | "handoff_denied"> {
+  /** After the member said yes: setup first proves the card is their own, then the secret is sealed to that window. */
+  async function handOff(listener: CardListener, tap: { p: string; m: string }) {
+    const secret = pendingSecret.current;
+    pendingSecret.current = null;
+    if (!secret) return setView({ kind: "handoff_failed" });
+    setView({ kind: "handing_off" });
     try {
-      const listeners = await findCardListeners();
-      const target: CardListener | undefined = listeners.sort((a, b) => b.exp - a.exp)[0];
-      if (!target) return "none";
-      if (target.purpose === "setup") {
+      if (listener.purpose === "setup") {
         // Only the member's own, unrevoked card may receive a recovery shard (the tap is spent here).
         const r = await verify({ data: { ...tap, purpose: "recovery_factor" } }).catch(() => null);
-        if (!r || !("status" in r) || r.status !== "card_confirmed") return "handoff_denied";
+        if (!r || !("status" in r) || r.status !== "card_confirmed") return setView({ kind: "handoff_denied" });
       }
-      return (await deliverCardSecret(target, secret)) ? "handed_off" : "handoff_failed";
+      setView({ kind: (await deliverCardSecret(listener, secret)) ? "handed_off" : "handoff_failed" });
     } catch {
-      return "handoff_failed";
+      setView({ kind: "handoff_failed" });
     } finally {
       secret.fill(0);
     }
   }
 
-  if ("kind" in view && (view.kind === "handing_off" || view.kind === "handed_off" || view.kind === "handoff_failed" || view.kind === "handoff_denied")) {
+  if ("kind" in view && view.kind === "handoff_confirm") {
+    const { listener } = view;
+    const tapBytes = { p: view.p, m: view.m };
+    return (
+      <main className="mx-auto flex min-h-[80vh] max-w-md flex-col items-center justify-center gap-6 p-6 text-center">
+        <ShieldCheck className="h-14 w-14 text-primary" strokeWidth={1.5} aria-hidden />
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold">{t("cardTap.handoff.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t(`cardTap.handoff.${listener.purpose}`)}</p>
+          <p className="text-sm text-muted-foreground">{t("cardTap.handoff.private")}</p>
+        </div>
+        <div className="flex w-full flex-col gap-3">
+          <Button className="w-full" onClick={() => void handOff(listener, tapBytes)}>{t("cardTap.handoff.yes")}</Button>
+          <Button variant="outline" className="w-full" onClick={() => { dropSecret(); setView({ kind: "handoff_declined" }); }}>{t("cardTap.handoff.no")}</Button>
+        </div>
+      </main>
+    );
+  }
+  if ("kind" in view && (view.kind === "handing_off" || view.kind === "handed_off" || view.kind === "handoff_failed" || view.kind === "handoff_denied" || view.kind === "handoff_many" || view.kind === "handoff_declined")) {
     const ok = view.kind === "handed_off";
     const busy = view.kind === "handing_off";
+    const text: Record<Exclude<typeof view.kind, "handing_off">, [string, string]> = {
+      handed_off: ["cardTap.handoff.sent.title", "cardTap.handoff.sent.body"],
+      handoff_failed: ["cardTap.handoff.failed.title", "cardTap.handoff.failed.body"],
+      handoff_denied: ["cardTap.handoff.failed.title", "cardTap.handoff.notOwn.body"],
+      handoff_many: ["cardTap.handoff.many.title", "cardTap.handoff.many.body"],
+      handoff_declined: ["cardTap.handoff.declined.title", "cardTap.handoff.declined.body"],
+    };
+    const [title, body] = busy ? ["cardTap.checking", null] : text[view.kind as Exclude<typeof view.kind, "handing_off">];
     return (
       <main className="mx-auto flex min-h-[80vh] max-w-md flex-col items-center justify-center gap-4 p-6 text-center">
         {busy ? (
@@ -135,14 +184,8 @@ function CardTap() {
         ) : (
           <ShieldX className="h-14 w-14 text-destructive" strokeWidth={1.5} aria-hidden />
         )}
-        <h1 className="text-2xl font-semibold" role={busy ? "status" : undefined}>
-          {busy ? t("cardTap.checking") : ok ? t("cardTap.handoff.title") : t("cardTap.notConfirmed.title")}
-        </h1>
-        {!busy && (
-          <p className="text-sm text-muted-foreground">
-            {ok ? t("cardTap.handoff.body") : view.kind === "handoff_denied" ? t("cardTap.handoff.denied") : t("cardTap.handoff.failed")}
-          </p>
-        )}
+        <h1 className="text-2xl font-semibold" role={busy ? "status" : undefined}>{t(title)}</h1>
+        {body && <p className="text-sm text-muted-foreground">{t(body)}</p>}
       </main>
     );
   }
