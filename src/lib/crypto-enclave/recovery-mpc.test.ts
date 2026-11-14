@@ -106,7 +106,7 @@ describe("3-of-4 recovery (ceremony version 3)", async () => {
   });
 
   it("detects a tampered shard or sealed Master Key", async () => {
-    const shard = ceremony.shards.nfc_card.slice();
+    const shard = (ceremony.shards.nfc_card as Uint8Array).slice();
     shard[shard.length - 1] = (shard[shard.length - 1] ?? 0) ^ 1;
     await expect(recoverMasterKey({ ceremony: { ...ceremony, shards: { ...ceremony.shards, nfc_card: shard } } as RecoveryCeremony, memberId: ALICE, factorSecretKeys: pick("device_prf", "nfc_card", "paper_guardian") })).rejects.toThrow(RecoveryError);
     const sealed = ceremony.sealedMaster.slice();
@@ -174,7 +174,7 @@ describe("3-of-4 recovery: properties over generated inputs", () => {
     const used: RecoveryFactor[] = ["device_prf", "nfc_card", "paper_guardian"];
     await fc.assert(
       fc.asyncProperty(fc.constantFrom<"sealedMaster" | RecoveryFactor>("sealedMaster", ...used), fc.nat(), fc.integer({ min: 0, max: 7 }), async (where, at, bit) => {
-        const target = where === "sealedMaster" ? c.sealedMaster : c.shards[where];
+        const target = (where === "sealedMaster" ? c.sealedMaster : c.shards[where]) as Uint8Array;
         const flipped = target.slice();
         const i = at % flipped.length;
         flipped[i] = (flipped[i] ?? 0) ^ (1 << bit);
