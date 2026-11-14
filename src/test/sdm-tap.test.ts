@@ -14,6 +14,7 @@ import { deriveVaultKek } from "@/lib/vault/server-kek";
 import { activateMemberCard, createSdmBatch, createSdmFleetKey, exportStationBundle, importSdmManifest, listSdmStations, registerSdmStation, retireSdmStation, sdmExportAad, sdmExportInfo, listSdmBatches, publicCardProof, verifyCardTap } from "@/lib/vault/sdm-tap.server";
 import { p256 } from "@noble/curves/nist.js";
 import { hpkeOpen } from "@/lib/vault/hpke-p256";
+import { consumeSdmTap, TapDenied } from "@/lib/vault/sdm-tap-consume.server";
 import { LocalPostgresVaultAdapter, VaultDeniedError, type VaultSqlExecutor } from "@/lib/vault/vault-port.server";
 
 const ADMIN = "00000000-0000-4000-8000-0000000000ad";
@@ -119,14 +120,14 @@ describe("ROUT Card tap", () => {
   it("spends a grant once, for one purpose; step_up needs the card's owner and grants expire after 120 s", async () => {
     const g1 = await verifyCardTap(tap("04A1B2C3D4E5F7", 30), deps);
     expect(g1).toMatch(/^tap_[0-9a-f]{64}$/);
-    expect(await port.consumeSdmTap({ userId: MEMBER }, g1, "step_up")).toBeNull();
-    expect(await port.consumeSdmTap(null, g1, "public_proof")).toBeNull();
+    await expect(consumeSdmTap(port, { userId: MEMBER }, g1, "step_up")).rejects.toThrow(TapDenied);
+    await expect(consumeSdmTap(port, null, g1, "public_proof")).rejects.toThrow(TapDenied);
     await db.query("update vault_enclave.sdm_batch_cards set owner_user_id = $1", [MEMBER]);
     const g2 = await verifyCardTap(tap("04A1B2C3D4E5F7", 31), deps);
-    expect(await port.consumeSdmTap({ userId: MEMBER }, g2, "step_up")).toBe("active");
+    expect(await consumeSdmTap(port, { userId: MEMBER }, g2, "step_up")).toBe("active");
     const g3 = await verifyCardTap(tap("04A1B2C3D4E5F7", 32), deps);
     await db.exec("update vault_enclave.sdm_tap_grants set expires_at = now() - interval '1 second' where consumed_at is null");
-    expect(await port.consumeSdmTap(null, g3, "public_proof")).toBeNull();
+    await expect(consumeSdmTap(port, null, g3, "public_proof")).rejects.toThrow(TapDenied);
     await db.exec("update vault_enclave.sdm_batch_cards set owner_user_id = null");
   });
 

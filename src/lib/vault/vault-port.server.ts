@@ -11,6 +11,7 @@
  * Every denial is the same VaultDeniedError; the reason stays in the enclave's
  * audit log.
  */
+import { parseSdmTapRow, type SdmTapResult } from "./sdm-tap-consume.server";
 import { z } from "zod";
 import { cleanContextId } from "@/lib/db-context";
 import { ENVELOPE_MAX_BYTES } from "@/lib/crypto-enclave/pqc-envelope";
@@ -110,8 +111,8 @@ export interface IVaultPort {
   beginSdmTap(fleetId: string, uidHash: Uint8Array, tap: SdmTapBytes): Promise<SdmTapChallenge>;
   /** Closes the attempt; a single-use tap_ grant only for a verified, strictly newer tap. */
   confirmSdmTap(attemptId: string, tap: SdmTapBytes, verified: boolean, readCounter: number | null): Promise<TapGrant | null>;
-  /** Spends a tap_ grant once for one purpose; step_up needs the card owner as caller. */
-  consumeSdmTap(caller: VaultCaller | null, grant: TapGrant, purpose: SdmTapPurpose): Promise<SdmCardState | null>;
+  /** Spends a tap_ grant once for one purpose; step_up and recovery_factor need the card owner as caller. Call only through consumeSdmTap() in sdm-tap-consume.server.ts. */
+  consumeSdmTapRow(caller: VaultCaller | null, grant: TapGrant, purpose: SdmTapPurpose): Promise<SdmTapResult>;
   /** Spends a tap_ grant to link an unclaimed card to the caller (db/0246); false on every denial. */
   activateMemberCard(caller: VaultCaller, grant: TapGrant, activationHash: Uint8Array | null): Promise<boolean>;
   /** Whether the caller owns an activated, unrevoked ROUT Card (db/0250). */
@@ -417,11 +418,10 @@ export class LocalPostgresVaultAdapter implements IVaultPort {
     return isTapGrant(ref) ? ref : null;
   }
 
-  async consumeSdmTap(caller: VaultCaller | null, grant: TapGrant, purpose: SdmTapPurpose): Promise<SdmCardState | null> {
+  async consumeSdmTapRow(caller: VaultCaller | null, grant: TapGrant, purpose: SdmTapPurpose): Promise<SdmTapResult> {
     if (!isTapGrant(grant) || (purpose !== "public_proof" && purpose !== "step_up" && purpose !== "recovery_factor")) throw new VaultDeniedError();
     const rows = await this.exec(caller ? callerId(caller) : NO_CALLER, "select granted, card_state from vault_enclave.consume_sdm_tap($1, $2)", [grant, purpose], { serializable: true });
-    const row = z.object({ granted: z.boolean(), card_state: z.enum(["active", "unactivated"]).nullable() }).safeParse(rows[0]);
-    return row.success && row.data.granted && row.data.card_state ? row.data.card_state : null;
+    return rows.length === 1 ? parseSdmTapRow(rows[0]) : { granted: false };
   }
 
   async activateMemberCard(caller: VaultCaller, grant: TapGrant, activationHash: Uint8Array | null): Promise<boolean> {
