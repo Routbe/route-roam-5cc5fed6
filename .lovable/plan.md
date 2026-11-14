@@ -202,3 +202,41 @@ Repo: route-roam-09e66f25 (bevestigd). Alles draait op eigen infrastructuur, er 
 2. Toepassen in één transactie.
 3. Rechten, checksum en audit controleren.
 4. Het bestand naar db/, het schema-niveau naar 0267 en de testsuite draaien.
+
+## H. Zeven verplichte correcties (vervangen waar ze botsen met B en F)
+1. **Wissen alleen als de crypto-worker niets doet** (vervangt F.5):
+   - Bij hidden of blur wist de worker alleen als `is_idle`.
+   - Een lopende bewerking krijgt een afbreeksignaal en stopt met een gecontroleerde fout (`OperationAborted`). Daarna wordt het geheugen alsnog gewist.
+   - Er wordt nooit gewist midden in een Wasm-instructie.
+   - Vergrendelen pas na 30 s hidden, zodat even naar je wachtwoordmanager wisselen geen handshake breekt.
+2. **COOP/COEP met een harde documentgrens** (vervangt F.1):
+   - Kluis, herstel en wachtwoord krijgen een eigen document onder /secure/*.
+   - Je komt daar altijd via een volledige pagina-herlaadbeurt, nooit via navigatie binnen de app.
+   - Alleen dat document stuurt de headers. Een subdomein blijft een optie als de documentgrens niet volstaat.
+3. **Schuilnaam per epoch** (vervangt B.7):
+   - `HMAC-SHA256(masterseed, host_id || epoch)`. Standaard is de epoch per boeking (een willekeurige nonce).
+   - Misbruiklimieten gaan via BBS+-tokens, zodat de host geen geschiedenis kan koppelen.
+   - Afweging: een host die bewust een vaste klant wil herkennen, kan dat alleen als de gast dat zelf toestaat.
+4. **Stateless SQL voor Neon-pooling** (vult B.2 aan):
+   - Het TLA+-model laat de verbinding na elke stap vallen.
+   - Elke SQL-stap is één zelfstandige transactie met FOR UPDATE op een herstel-masterrij, een idempotency-sleutel en een versienummer (compare-and-swap).
+   - Geen sessievariabelen, advisory locks of tijdelijke tabellen buiten de transactie.
+5. **Hybride ratchet** (vervangt B.8):
+   - Een HKDF-symmetrische ratchet per event.
+   - Een ML-KEM-1024 + X25519-stap alleen bij de start, bij een apparaatwissel of eens per 24 uur (een epoch).
+   - Een header met alleen een epoch-id en een teller, en een test die de overhead per event begrenst.
+6. **Weigering van 0267 kan niet stil voorbijgaan:**
+   - Een strikte Zod-discriminated union `{granted:true,cardState} | {granted:false}`.
+   - Één wrapper `consumeSdmTap()` geeft het resultaat terug als ‘never-ignored’ type en gooit bij false een `TapDenied`-fout in de aanroepende flow.
+   - Een lint-regel verbiedt directe SQL-aanroepen.
+   - De database blijft granted=false teruggeven. Een fout (RAISE) zou het audit-log terugdraaien, en dat is in strijd met de bestaande vault-regel.
+7. **Wachtwoord niet als JavaScript-string:**
+   - Een eigen invoerveld zonder `value`. Elk keydown-event gaat als bytes naar een Uint8Array in Wasm, en het scherm toont alleen bolletjes.
+   - Eerlijke grens: de browser maakt per toets zelf een korte string (`event.key`) en stuurt die door het besturingssysteem. Die kan niemand wissen. Het lek verkleint van het hele wachtwoord tot losse tekens.
+   - Afweging: plakken en wachtwoordmanagers werken in deze modus niet. Hij is daarom een keuze ("paranoïde invoer"), naast het normale veld dat direct na het afleiden wordt leeggemaakt.
+
+## Uitvoering na goedkeuring
+1. Roadmap en AGENTS.md bijwerken met F en H.
+2. Stap 1: de testsuite tot 0 rood, en CLS en contrast opnieuw meten.
+3. De rollback-SQL voor 0267 schrijven, de TypeScript-wrapper uit H.6 bouwen en de controles vooraf alleen-lezen op Neon draaien.
+4. Je de resultaten laten zien. Migratie 0267 gaat pas naar Neon na je expliciete GO in een volgend bericht.
