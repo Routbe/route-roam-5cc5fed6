@@ -124,5 +124,6 @@
 - [ ] Geheugen-wiping: één vooraf toegewezen werkergeheugen voor sleutel- en klare bytes, nulgezet na elke bewerking + test
 - [ ] Property-based tests (fast-check) + begrensde modelcontrole voor grootboek, hash-ketens, reserveringssloten en statusovergangen — vereist vóór GO per migratie
 - [ ] BBS+ (BLS12-381) blinde credentials + zero-knowledge-bewijs bij aankomst; server bewaart alleen een nullifier per tijdslot
-- [ ] Besluit eigenaar: herstel 3-van-4 (nieuw bericht) of 2-van-4 (bijlage O, al gebouwd)
-- [ ] Besluit eigenaar: limieten per gast en bevestigingsmails naast onkoppelbare gasten
+- [x] Besluit eigenaar: herstel 3-van-4 (vervangt 2-van-4 uit bijlage O)
+- [ ] Fase B: recovery-mpc naar drempel 3 van 4 (nieuwe ceremonieversie; 2-van-4-ceremonies nog niet in gebruik)
+- [x] Besluit eigenaar: pseudoniem per host — limieten per host, niet te volgen tussen hosts, mail via kluisverwijzing
