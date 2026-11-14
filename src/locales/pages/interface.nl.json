@@ -219,7 +219,7 @@
   "cardTap.confirm.no": "Nee, dit was ik niet",
   "cardTap.declined.title": "Niets bevestigd",
   "cardTap.declined.body": "Het verzoek vervalt vanzelf binnen 5 minuten. Heb je dit niet zelf gevraagd? Bekijk dan je actieve sessies in je account en meld onbekende toestellen af.",
-  "cardTap.handoff.title": "ROUT Card gebruiken voor je herstelkluis?",
+  "cardTap.handoff.title": "Kaart doorgegeven",
   "cardTap.handoff.setup": "Je andere venster stelt je herstelkluis in en vraagt deze kaart als vierde stuk.",
   "cardTap.handoff.restore": "Je andere venster zet je hoofdsleutel terug en vraagt deze kaart als een van de twee stukken.",
   "cardTap.handoff.login": "Je andere venster logt je in met herstel en vraagt deze kaart als een van de twee stukken.",
@@ -255,5 +255,8 @@
   "cardTap.missing.body": "Open deze pagina door je ROUT Card tegen je telefoon te houden.",
   "cardTap.denied.body": "Deze tik kon niet bevestigd worden. Houd de kaart opnieuw tegen je telefoon; een gekopieerde of oude link werkt nooit.",
   "cardTap.verified.title": "Echte ROUT Card",
-  "cardTap.verified.badge": "Cryptografisch geverifieerd"
+  "cardTap.verified.badge": "Cryptografisch geverifieerd",
+  "cardTap.handoff.body": "Je ROUT Card is versleuteld doorgegeven aan je herstelkluis. Ga terug naar dat tabblad om verder te gaan. Dit tabblad mag je sluiten.",
+  "cardTap.handoff.failed": "Je kaart kon niet aan je herstelkluis worden doorgegeven. Ga terug naar dat tabblad en tik je kaart opnieuw.",
+  "cardTap.handoff.denied": "Dit is niet je eigen, actieve ROUT Card. Je herstelkluis kan alleen met je eigen kaart worden ingesteld."
 }

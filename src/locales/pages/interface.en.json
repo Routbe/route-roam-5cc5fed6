@@ -219,7 +219,7 @@
   "cardTap.confirm.no": "No, this wasn't me",
   "cardTap.declined.title": "Nothing confirmed",
   "cardTap.declined.body": "The request expires on its own within 5 minutes. Didn't you ask for this yourself? Check the active sessions in your account and sign out unknown devices.",
-  "cardTap.handoff.title": "Use this ROUT Card for your recovery vault?",
+  "cardTap.handoff.title": "Card handed over",
   "cardTap.handoff.setup": "Your other window is setting up your recovery vault and asks for this card as the fourth piece.",
   "cardTap.handoff.restore": "Your other window is restoring your master key and asks for this card as one of the two pieces.",
   "cardTap.handoff.login": "Your other window is signing you in by recovery and asks for this card as one of the two pieces.",
@@ -255,5 +255,8 @@
   "cardTap.missing.body": "Open this page by holding your ROUT Card against your phone.",
   "cardTap.denied.body": "This tap could not be confirmed. Hold the card against your phone again; a copied or old link never works.",
   "cardTap.verified.title": "Authentic ROUT Card",
-  "cardTap.verified.badge": "Cryptographically verified"
+  "cardTap.verified.badge": "Cryptographically verified",
+  "cardTap.handoff.body": "Your ROUT Card was passed, encrypted, to your recovery vault. Go back to that tab to continue. You can close this tab.",
+  "cardTap.handoff.failed": "Your card could not be passed to your recovery vault. Go back to that tab and tap your card again.",
+  "cardTap.handoff.denied": "This is not your own, active ROUT Card. Your recovery vault can only be set up with your own card."
 }

@@ -9,7 +9,7 @@ const bundles = { en, nl, fr, de } as Record<string, Record<string, string>>;
 describe("ROUT Card tap page (/t) in four languages", () => {
   it("every card tap message exists and is filled in for nl, en, fr and de", () => {
     const keys = Object.keys(nl).filter((k) => k.startsWith("cardTap."));
-    expect(keys.length).toBe(44);
+    expect(keys.length).toBe(48);
     for (const [locale, bundle] of Object.entries(bundles)) {
       for (const k of keys) expect(bundle[k]?.trim(), `${locale}:${k}`).toBeTruthy();
       expect(Object.keys(bundle).filter((k) => k.startsWith("cardTap.")).sort(), locale).toEqual([...keys].sort());
