@@ -99,7 +99,7 @@
 - [ ] Fase G: W3C Verifiable Credentials / selectief-onthullend bewijs voor gastverificatie
 - [x] Fase B: herstel 2-van-4 (passkey, ROUT-kaart, server, papier) — cryptokern + werker + tests; kaartgeheim alleen in URL-fragment
 - [x] Fase B: db-pending/0266 kaartdeel herstel — getest in testdatabase (wacht op GO)
-- [ ] Fase B: herstel 2-van-4 aansluiten op scherm, opslag en herstel-login (na GO 0266)
+- [x] Fase B: herstel aangesloten op scherm, opslag en herstel-login — nu als 3-van-4 (kaart tikken, 3 stukken kiezen)
 - [ ] Fase B: kaarten (her)personaliseren met #rk1-fragment (fabrieksstation) — fysieke kaarten nodig
 - [x] Fase B: versleutelde boekingsinhoud (bkh/bkg, ML-KEM-1024 + X25519, vaste emmers) — kern + tests
 - [ ] Fase B: 0265 grootboek aanpassen: vingerafdruk over versleutelde tekst i.p.v. platte velden
@@ -125,5 +125,9 @@
 - [ ] Property-based tests (fast-check) + begrensde modelcontrole voor grootboek, hash-ketens, reserveringssloten en statusovergangen — vereist vóór GO per migratie
 - [ ] BBS+ (BLS12-381) blinde credentials + zero-knowledge-bewijs bij aankomst; server bewaart alleen een nullifier per tijdslot
 - [x] Besluit eigenaar: herstel 3-van-4 (vervangt 2-van-4 uit bijlage O)
-- [ ] Fase B: recovery-mpc naar drempel 3 van 4 (nieuwe ceremonieversie; 2-van-4-ceremonies nog niet in gebruik)
+- [x] Fase B: recovery-mpc versie 3 (drempel 3 van 4), werker, server, /t-doorgifte, schermen; modelcontrole 16 deelverzamelingen + fast-check
+- [ ] GO eigenaar: db-pending/0267 (kaarttik "dit is mijn kaart") op Neon — nodig om een kluis in te stellen
+- [ ] GO eigenaar: db-pending/0268 (opslag 3-van-4) op Neon — tot dan weigert de app elke nieuwe kluis
+- [ ] Na deploy met niveau ≥ 0268: db-pending/0269 (oude 2-van-3/2-van-4-opslag weg, alleen versie 3) — GO eigenaar
+- [ ] Doorkliktest 3-van-4 op echte telefoon met een kaart mét #rk1-fragment
 - [x] Besluit eigenaar: pseudoniem per host — limieten per host, niet te volgen tussen hosts, mail via kluisverwijzing
