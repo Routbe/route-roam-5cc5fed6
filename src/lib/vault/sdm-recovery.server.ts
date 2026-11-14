@@ -1,6 +1,7 @@
 /**
  * NFC card recovery gate (db/0224): a card factor for recovery. Not part of the
- * current 2-of-3 ceremony (passkey + paper + server, recovery-mpc.ts).
+ * 3-of-4 ceremony (recovery-mpc.ts): that card share comes from the #rk1
+ * fragment a server never sees, never from this server-sealed envelope.
  *
  * Works without a session or passkey: the card id comes from the card's own
  * tap URL, and only a live NTAG 424 DNA SUN tap opens the gate.

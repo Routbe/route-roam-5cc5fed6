@@ -61,7 +61,7 @@ export const MERGE_TABLES: Readonly<Record<string, MergeTableRule>> = {
   physical_keys: r("skip"),
   wallet_passes: r("skip"),
   oidc_subjects: r("skip"),
-  // The 2-of-3 recovery ceremony (0242) is bound to the secondary's own member id
+  // The recovery ceremony (0242; 3-of-4 since 0268) is bound to the secondary's own member id
   // and Master Key; card generations (0212) are the card replacement counter.
   // Never moved or silently dropped.
   recovery_ceremonies: r("skip"),
