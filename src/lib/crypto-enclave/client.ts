@@ -183,13 +183,13 @@ export const enclave = {
   },
   ceremony: {
     /**
-     * Starts a ceremony; `mnemonic` is the existing Master Key's words when this device has a key.
-     * `cardSecret` (32 bytes from a freshly tapped ROUT Card fragment) makes it 2-of-4; transferred.
+     * Starts a 3-of-4 ceremony; `cardSecret` (32 bytes from a freshly tapped ROUT Card fragment) is required and transferred.
+     * `mnemonic` is the existing Master Key's words when this device has a key.
      */
-    begin: (userId: string, serverFactorKey: Uint8Array, mnemonic?: string, cardSecret?: Uint8Array) =>
+    begin: (userId: string, serverFactorKey: Uint8Array, cardSecret: Uint8Array, mnemonic?: string) =>
       callEnclave(
         "ceremony.begin",
-        { userId, serverFactorKey, ...(mnemonic === undefined ? {} : { mnemonic }), ...(cardSecret === undefined ? {} : { cardSecret }) },
+        { userId, serverFactorKey, cardSecret, ...(mnemonic === undefined ? {} : { mnemonic }) },
         moved(serverFactorKey, cardSecret),
       ),
     checkWords: (handle: string, answers: { position: number; word: string }[]) => callEnclave("ceremony.checkWords", { handle, answers }),

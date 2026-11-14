@@ -1,12 +1,18 @@
 /**
  * Transport form of a recovery ceremony: every envelope as standard base64, so
  * it crosses server functions and the database as plain text. Contains only
- * ciphertext; no factor, share or key. A ROUT Card shard (nfc_card) present
- * means version 2 (2-of-4); absent means version 1 (2-of-3).
+ * ciphertext; no factor, share or key. The version travels explicitly: version
+ * 2 (2-of-4) and version 3 (3-of-4) carry the same four shards, so the shard
+ * set alone must never decide how a ceremony is opened.
  */
-import type { CoreFactor, RecoveryCeremony } from "@/lib/crypto-enclave/recovery-mpc";
+// Type-only: this module is also loaded on the UI thread, which must not pull in the crypto code.
+import type { CeremonyVersion, CoreFactor, RecoveryCeremony } from "@/lib/crypto-enclave/recovery-mpc";
+
+/** Mirror of recovery-mpc VERSION_THRESHOLD (a test keeps them equal). */
+export const WIRE_THRESHOLD: Readonly<Record<CeremonyVersion, number>> = Object.freeze({ 1: 2, 2: 2, 3: 3 });
 
 export type CeremonyWire = {
+  version: CeremonyVersion;
   ceremonyId: string;
   keyId: string;
   sealedMaster: string;
@@ -35,19 +41,27 @@ export function fromB64(value: string): Uint8Array {
 export function ceremonyToWire(c: RecoveryCeremony, keyId: string): CeremonyWire {
   const core = { device_prf: toB64(c.shards.device_prf), paper_guardian: toB64(c.shards.paper_guardian), server_guardian: toB64(c.shards.server_guardian) };
   return {
+    version: c.version,
     ceremonyId: c.ceremonyId,
     keyId,
     sealedMaster: toB64(c.sealedMaster),
-    shards: c.version === 2 ? { ...core, nfc_card: toB64(c.shards.nfc_card) } : core,
+    shards: c.version === 1 ? core : { ...core, nfc_card: toB64(c.shards.nfc_card) },
   };
 }
 
+/** Strict: the declared version must match the shard set exactly (version 1 has no card shard, 2 and 3 must have one). */
 export function ceremonyFromWire(w: CeremonyWire, memberId: string): RecoveryCeremony {
   if (!CEREMONY_ID_RE.test(w.ceremonyId)) throw new TypeError("invalid_ceremony");
-  const base = { ceremonyId: w.ceremonyId, memberId, threshold: 2 as const, sealedMaster: fromB64(w.sealedMaster) };
-  const core = { device_prf: fromB64(w.shards.device_prf), paper_guardian: fromB64(w.shards.paper_guardian), server_guardian: fromB64(w.shards.server_guardian) };
+  const version = w.version;
+  if (version !== 1 && version !== 2 && version !== 3) throw new TypeError("invalid_ceremony");
   const card = w.shards.nfc_card;
-  return card === undefined || card === null ? { ...base, version: 1, shards: core } : { ...base, version: 2, shards: { ...core, nfc_card: fromB64(card) } };
+  const hasCard = typeof card === "string" && card.length > 0;
+  if (hasCard !== (version !== 1)) throw new TypeError("invalid_ceremony");
+  const base = { ceremonyId: w.ceremonyId, memberId, sealedMaster: fromB64(w.sealedMaster) };
+  const core = { device_prf: fromB64(w.shards.device_prf), paper_guardian: fromB64(w.shards.paper_guardian), server_guardian: fromB64(w.shards.server_guardian) };
+  if (version === 1) return { ...base, version: 1, threshold: 2, shards: core };
+  const all = { ...core, nfc_card: fromB64(card as string) };
+  return version === 2 ? { ...base, version: 2, threshold: 2, shards: all } : { ...base, version: 3, threshold: 3, shards: all };
 }
 
 /** A stored ceremony as the version-aware reads (db/0266 *_v2) return it. */
@@ -64,22 +78,23 @@ export type CeremonyRow = {
 };
 
 /**
- * Wire form of a stored ceremony. A version 2 row must carry its card shard and
- * a version 1 row must not; anything else is refused rather than guessed, so a
- * 2-of-4 ceremony is never handed out (or opened) as 2-of-3.
+ * Wire form of a stored ceremony. A version 1 row must not carry a card shard,
+ * version 2 and 3 rows must; any other version is refused rather than guessed,
+ * so a 3-of-4 ceremony is never handed out (or opened) as 2-of-4 or 2-of-3.
  */
 export function ceremonyRowToWire(r: CeremonyRow): CeremonyWire {
   const core = { device_prf: r.device_shard, paper_guardian: r.paper_shard, server_guardian: r.server_shard };
   const version = Number(r.ceremony_version);
-  if (version === 1 && r.card_shard === null) return { ceremonyId: r.ceremony_id, keyId: r.key_id, sealedMaster: r.sealed_master, shards: core };
-  if (version === 2 && typeof r.card_shard === "string" && r.card_shard.length > 0) {
-    return { ceremonyId: r.ceremony_id, keyId: r.key_id, sealedMaster: r.sealed_master, shards: { ...core, nfc_card: r.card_shard } };
+  const base = { ceremonyId: r.ceremony_id, keyId: r.key_id, sealedMaster: r.sealed_master };
+  if (version === 1 && r.card_shard === null) return { ...base, version: 1, shards: core };
+  if ((version === 2 || version === 3) && typeof r.card_shard === "string" && r.card_shard.length > 0) {
+    return { ...base, version, shards: { ...core, nfc_card: r.card_shard } };
   }
   throw new TypeError("invalid_ceremony_row");
 }
 
-/** 2-of-3 (version 1) or 2-of-4 (version 2, with a ROUT Card shard). */
-export const wireVersion = (w: CeremonyWire): 1 | 2 => (w.shards.nfc_card === undefined ? 1 : 2);
+/** Shares needed to open a ceremony of this wire form (3 for every ceremony made now). */
+export const wireThreshold = (w: CeremonyWire): number => WIRE_THRESHOLD[w.version];
 
 /** Number of words typed so far (for enabling a button; the words themselves are not kept). */
 export function wordCount(text: string): number {

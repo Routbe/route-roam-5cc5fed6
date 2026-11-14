@@ -11,6 +11,7 @@ import type { RecoveryCeremony } from "./recovery-mpc";
 const SECRET = "A".repeat(32) + "b".repeat(32);
 const CHALLENGE = "c".repeat(43);
 const prfOf = (n: number) => new Uint8Array(32).fill(n);
+const cardOf = (n: number) => new Uint8Array(32).map((_, i) => (i * 13 + n) & 0xff);
 
 async function call<K extends EnclaveOp>(op: K, args: EnclaveOps[K]["req"]): Promise<EnclaveOps[K]["res"]> {
   const r = await runEnclaveOp(op, args);
@@ -23,7 +24,7 @@ const code = async (op: EnclaveOp, args: unknown) => {
 };
 
 async function setup(userId: string) {
-  const begun = await call("ceremony.begin", { userId, serverFactorKey: serverFactorPublicKey(userId, SECRET) });
+  const begun = await call("ceremony.begin", { userId, serverFactorKey: serverFactorPublicKey(userId, SECRET), cardSecret: cardOf(3) });
   const words = begun.paperWords.split(" ");
   const answers = begun.checkPositions.map((position) => ({ position, word: words[position - 1] ?? "" }));
   await call("ceremony.checkWords", { handle: begun.handle, answers });
@@ -36,17 +37,18 @@ describe("sign-in by recovery in the crypto enclave", () => {
   let n = 0;
   const nextUser = () => `00000000-0000-4000-8000-0000000000d${++n}`;
 
-  it("any two pieces sign the server challenge with the key whose public half was stored", async () => {
+  it("any three pieces sign the server challenge with the key whose public half was stored", async () => {
     const userId = nextUser();
     const { ceremony, keyId, loginKey, paper } = await setup(userId);
     expect(loginKey).toHaveLength(32);
     const server = () => openServerShard(structuredClone(ceremony), userId, SECRET);
     const base = { userId, keyId, challenge: CHALLENGE };
     for (const pieces of [
-      { paperWords: paper, serverShare: server() },
-      { prf: prfOf(5), serverShare: server() },
-      { prf: prfOf(5), paperWords: paper },
-    ]) {
+      () => ({ paperWords: paper, serverShare: server(), cardSecret: cardOf(3) }),
+      () => ({ prf: prfOf(5), serverShare: server(), cardSecret: cardOf(3) }),
+      () => ({ prf: prfOf(5), serverShare: server(), paperWords: paper }),
+      () => ({ prf: prfOf(5), paperWords: paper, cardSecret: cardOf(3) }),
+    ].map((f) => f())) {
       await forgetDeviceKey(userId);
       const r = await call("ceremony.recoverLogin", { ...base, ceremony: structuredClone(ceremony), ...pieces });
       expect(r.keyId).toBe(keyId);
@@ -59,16 +61,17 @@ describe("sign-in by recovery in the crypto enclave", () => {
     }
   });
 
-  it("one piece alone signs nothing and installs nothing", async () => {
+  it("two pieces sign nothing and install nothing, including ROUT's piece with a card", async () => {
     const userId = nextUser();
     const { ceremony, keyId, paper } = await setup(userId);
     const server = () => openServerShard(structuredClone(ceremony), userId, SECRET);
     await forgetDeviceKey(userId);
     const base = { userId, keyId, challenge: CHALLENGE };
     expect(await code("ceremony.recoverLogin", { ...base, ceremony: structuredClone(ceremony), serverShare: server() })).toBe("decrypt_failed");
-    expect(await code("ceremony.recoverLogin", { ...base, ceremony: structuredClone(ceremony), paperWords: paper })).toBe("decrypt_failed");
-    expect(await code("ceremony.recoverLogin", { ...base, ceremony: structuredClone(ceremony), prf: prfOf(5) })).toBe("decrypt_failed");
-    expect(await code("ceremony.recoverLogin", { ...base, ceremony: structuredClone(ceremony), prf: prfOf(9), serverShare: server() })).toBe("decrypt_failed");
+    expect(await code("ceremony.recoverLogin", { ...base, ceremony: structuredClone(ceremony), serverShare: server(), cardSecret: cardOf(3) })).toBe("decrypt_failed");
+    expect(await code("ceremony.recoverLogin", { ...base, ceremony: structuredClone(ceremony), paperWords: paper, prf: prfOf(5) })).toBe("decrypt_failed");
+    expect(await code("ceremony.recoverLogin", { ...base, ceremony: structuredClone(ceremony), prf: prfOf(5), serverShare: server() })).toBe("decrypt_failed");
+    expect(await code("ceremony.recoverLogin", { ...base, ceremony: structuredClone(ceremony), prf: prfOf(9), serverShare: server(), paperWords: paper })).toBe("decrypt_failed");
     expect(await loadDeviceKey(userId)).toBeNull();
   });
 
@@ -78,16 +81,20 @@ describe("sign-in by recovery in the crypto enclave", () => {
     await forgetDeviceKey(userId);
     const prf = prfOf(5);
     const share = openServerShard(structuredClone(ceremony), userId, SECRET);
-    await call("ceremony.recoverLogin", { userId, keyId, challenge: CHALLENGE, ceremony: structuredClone(ceremony), prf, serverShare: share });
+    const card = cardOf(3);
+    await call("ceremony.recoverLogin", { userId, keyId, challenge: CHALLENGE, ceremony: structuredClone(ceremony), prf, serverShare: share, cardSecret: card });
     expect(prf.every((b) => b === 0)).toBe(true);
     expect(share.every((b) => b === 0)).toBe(true);
+    expect(card.every((b) => b === 0)).toBe(true);
 
     await forgetDeviceKey(userId);
     const badPrf = prfOf(9);
     const badShare = openServerShard(structuredClone(ceremony), userId, SECRET);
-    expect(await code("ceremony.recoverLogin", { userId, keyId, challenge: CHALLENGE, ceremony: structuredClone(ceremony), prf: badPrf, serverShare: badShare, paperWords: undefined })).toBe("decrypt_failed");
+    const badCard = cardOf(3);
+    expect(await code("ceremony.recoverLogin", { userId, keyId, challenge: CHALLENGE, ceremony: structuredClone(ceremony), prf: badPrf, serverShare: badShare, cardSecret: badCard, paperWords: undefined })).toBe("decrypt_failed");
     expect(badPrf.every((b) => b === 0)).toBe(true);
     expect(badShare.every((b) => b === 0)).toBe(true);
+    expect(badCard.every((b) => b === 0)).toBe(true);
     void paper;
   });
 

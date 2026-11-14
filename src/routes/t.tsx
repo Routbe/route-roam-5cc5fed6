@@ -6,6 +6,8 @@ import { Loader2, ShieldCheck, ShieldX } from "lucide-react";
 import { pendingCardStepUpFn, verifyCardTapFn, type CardTapResult } from "@/lib/wallet/card-tap.functions";
 import { activateCardFn, type CardActivationResult } from "@/lib/wallet/card-admin.functions";
 import { takeActivationIntent } from "@/lib/wallet/card-activation-intent";
+import { cardSecretFromUrl } from "@/lib/crypto-enclave/card-fragment";
+import { deliverCardSecret, findCardListeners, type CardListener } from "@/lib/recovery/card-handoff";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -14,6 +16,13 @@ import { Input } from "@/components/ui/input";
  * read once on the client and removed from the address bar before anything
  * else happens; the server checks the AES-CMAC and the counter. No card id and
  * no personal data are ever shown.
+ *
+ * A re-personalised card also carries `#rk1=<secret>` (card-fragment.ts), the
+ * ROUT Card share of the 3-of-4 recovery vault. When another tab of this
+ * browser is waiting for the card (setup, restore or sign-in by recovery), the
+ * secret is sealed to that tab (card-handoff.ts) and wiped here; for setup only
+ * after the server confirmed the tap as the member's own card. The fragment
+ * never reaches a server: browsers do not send it.
  */
 export const Route = createFileRoute("/t")({
   head: () => ({
@@ -37,6 +46,9 @@ type View =
   | { kind: "activate" | "activating"; p: string; m: string }
   | { kind: "confirm_step_up" | "confirming_step_up"; p: string; m: string }
   | { kind: "step_up_declined" }
+  | { kind: "handing_off" }
+  | { kind: "handoff_confirm"; listener: CardListener; p: string; m: string }
+  | { kind: "handed_off" | "handoff_failed" | "handoff_denied" | "handoff_many" | "handoff_declined" }
   | { activation: CardActivationResult["status"] }
   | CardTapResult;
 
@@ -48,6 +60,13 @@ function CardTap() {
   const [code, setCode] = useState("");
   const [view, setView] = useState<View>({ kind: "checking" });
   const started = useRef(false);
+  // The recovery secret waits here only until the member answers; wiped on every path and on leaving.
+  const pendingSecret = useRef<Uint8Array | null>(null);
+  const dropSecret = () => {
+    pendingSecret.current?.fill(0);
+    pendingSecret.current = null;
+  };
+  useEffect(() => dropSecret, []);
 
   useEffect(() => {
     if (started.current) return;
@@ -55,31 +74,121 @@ function CardTap() {
     const params = new URLSearchParams(window.location.search);
     const p = params.get("p") ?? "";
     const m = params.get("m") ?? "";
-    // The tap bytes never stay in the address bar, history or a shared link.
+    // Read before the address is cleaned: the recovery secret lives only in the fragment.
+    const secret = cardSecretFromUrl(window.location.href);
+    // The tap bytes and the fragment never stay in the address bar, history or a shared link.
     window.history.replaceState(window.history.state, "", window.location.pathname);
     if (!/^[0-9A-Fa-f]{32}$/.test(p) || !/^[0-9A-Fa-f]{16}$/.test(m)) {
+      secret?.fill(0);
       setView({ kind: "missing" });
       return;
     }
     // Started from "Activeer je ROUT Card": this tap links the card instead.
     // The single-use tap bytes stay in memory only until the member confirms.
     if (takeActivationIntent()) {
+      secret?.fill(0);
       setView({ kind: "activate", p, m });
       return;
     }
-    // An open card step-up is only confirmed after the member says yes here;
-    // the single-use tap bytes stay in memory until then and are never spent on a proof.
-    pendingStepUp()
-      .then(({ pending }) => {
-        if (pending) {
-          setView({ kind: "confirm_step_up", p, m });
-          return;
+    const proceed = () => {
+      // An open card step-up is only confirmed after the member says yes here;
+      // the single-use tap bytes stay in memory until then and are never spent on a proof.
+      pendingStepUp()
+        .then(({ pending }) => {
+          if (pending) {
+            setView({ kind: "confirm_step_up", p, m });
+            return;
+          }
+          return verify({ data: { p, m, purpose: "proof" } }).then((r) => setView(r));
+        })
+        .catch(() => setView({ status: "denied" }));
+    };
+    if (!secret) return proceed();
+    // Is another window of this browser waiting for the card? Otherwise the secret is wiped at once.
+    pendingSecret.current = secret;
+    setView({ kind: "handing_off" });
+    findCardListeners()
+      .then((listeners) => {
+        if (listeners.length === 0) {
+          dropSecret();
+          return proceed();
         }
-        return verify({ data: { p, m, purpose: "proof" } }).then((r) => setView(r));
+        if (listeners.length > 1) {
+          // Never guess which window gets the card.
+          dropSecret();
+          return setView({ kind: "handoff_many" });
+        }
+        setView({ kind: "handoff_confirm", listener: listeners[0] as CardListener, p, m });
       })
-      .catch(() => setView({ status: "denied" }));
+      .catch(() => {
+        dropSecret();
+        proceed();
+      });
   }, [verify, pendingStepUp]);
 
+  /** After the member said yes: setup first proves the card is their own, then the secret is sealed to that window. */
+  async function handOff(listener: CardListener, tap: { p: string; m: string }) {
+    const secret = pendingSecret.current;
+    pendingSecret.current = null;
+    if (!secret) return setView({ kind: "handoff_failed" });
+    setView({ kind: "handing_off" });
+    try {
+      if (listener.purpose === "setup") {
+        // Only the member's own, unrevoked card may receive a recovery shard (the tap is spent here).
+        const r = await verify({ data: { ...tap, purpose: "recovery_factor" } }).catch(() => null);
+        if (!r || !("status" in r) || r.status !== "card_confirmed") return setView({ kind: "handoff_denied" });
+      }
+      setView({ kind: (await deliverCardSecret(listener, secret)) ? "handed_off" : "handoff_failed" });
+    } catch {
+      setView({ kind: "handoff_failed" });
+    } finally {
+      secret.fill(0);
+    }
+  }
+
+  if ("kind" in view && view.kind === "handoff_confirm") {
+    const { listener } = view;
+    const tapBytes = { p: view.p, m: view.m };
+    return (
+      <main className="mx-auto flex min-h-[80vh] max-w-md flex-col items-center justify-center gap-6 p-6 text-center">
+        <ShieldCheck className="h-14 w-14 text-primary" strokeWidth={1.5} aria-hidden />
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold">{t("cardTap.handoff.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t(`cardTap.handoff.${listener.purpose}`)}</p>
+          <p className="text-sm text-muted-foreground">{t("cardTap.handoff.private")}</p>
+        </div>
+        <div className="flex w-full flex-col gap-3">
+          <Button className="w-full" onClick={() => void handOff(listener, tapBytes)}>{t("cardTap.handoff.yes")}</Button>
+          <Button variant="outline" className="w-full" onClick={() => { dropSecret(); setView({ kind: "handoff_declined" }); }}>{t("cardTap.handoff.no")}</Button>
+        </div>
+      </main>
+    );
+  }
+  if ("kind" in view && (view.kind === "handing_off" || view.kind === "handed_off" || view.kind === "handoff_failed" || view.kind === "handoff_denied" || view.kind === "handoff_many" || view.kind === "handoff_declined")) {
+    const ok = view.kind === "handed_off";
+    const busy = view.kind === "handing_off";
+    const text: Record<Exclude<typeof view.kind, "handing_off">, [string, string]> = {
+      handed_off: ["cardTap.handoff.sent.title", "cardTap.handoff.sent.body"],
+      handoff_failed: ["cardTap.handoff.failed.title", "cardTap.handoff.failed.body"],
+      handoff_denied: ["cardTap.handoff.failed.title", "cardTap.handoff.notOwn.body"],
+      handoff_many: ["cardTap.handoff.many.title", "cardTap.handoff.many.body"],
+      handoff_declined: ["cardTap.handoff.declined.title", "cardTap.handoff.declined.body"],
+    };
+    const [title, body]: [string, string | null] = busy ? ["cardTap.checking", null] : text[view.kind as Exclude<typeof view.kind, "handing_off">];
+    return (
+      <main className="mx-auto flex min-h-[80vh] max-w-md flex-col items-center justify-center gap-4 p-6 text-center">
+        {busy ? (
+          <Loader2 className="h-12 w-12 animate-spin text-muted-foreground" aria-hidden />
+        ) : ok ? (
+          <ShieldCheck className="h-14 w-14 text-primary" strokeWidth={1.5} aria-hidden />
+        ) : (
+          <ShieldX className="h-14 w-14 text-destructive" strokeWidth={1.5} aria-hidden />
+        )}
+        <h1 className="text-2xl font-semibold" role={busy ? "status" : undefined}>{t(title)}</h1>
+        {body && <p className="text-sm text-muted-foreground">{t(body)}</p>}
+      </main>
+    );
+  }
   if ("kind" in view && (view.kind === "confirm_step_up" || view.kind === "confirming_step_up")) {
     const busy = view.kind === "confirming_step_up";
     const tapBytes = { p: view.p, m: view.m };

@@ -41,6 +41,7 @@ import { cardFactorKeys } from "./card-factor";
 import {
   RECOVERY_FACTORS,
   VERSION_FACTORS,
+  VERSION_THRESHOLD,
   RecoveryError,
   beginRecoveryCeremony,
   completeRecoveryCeremony,
@@ -50,6 +51,7 @@ import {
   paperFactorKeys,
   recoverMasterKey,
   type CeremonyDraft,
+  type CeremonyVersion,
   type RecoveryCeremony,
 } from "./recovery-mpc";
 
@@ -84,7 +86,7 @@ const pendingLedger = new Map<string, { key: CryptoKey; expiresAt: number; timer
 const ledgerKeys = new Map<string, CryptoKey>();
 
 /**
- * A 2-of-3 ceremony in progress. Holds the raw device share (one share reveals
+ * A 3-of-4 ceremony in progress. Holds the raw device share (one share reveals
  * nothing) until the passkey seals it, a non-extractable key to install when
  * this device had none, and only hashes of the words the member must retype.
  */
@@ -149,8 +151,8 @@ function checkPositions(): number[] {
 }
 
 /**
- * Any two of passkey PRF, paper words and the server's opened share rebuild the
- * Master Key; `then` runs while it exists (to sign), after which it is installed
+ * The ceremony's threshold of passkey PRF, paper words, ROUT Card secret and the
+ * server's opened share (3 for version 3) rebuild the Master Key; `then` runs while it exists (to sign), after which it is installed
  * as this device's key. Shares, factor keys and the Master Key are zero-filled
  * in `finally`, also on every failure.
  */
@@ -212,9 +214,10 @@ function ceremonyOf(v: unknown, userId: string): RecoveryCeremony {
   if (typeof v !== "object" || v === null) return fail("invalid_input");
   const c = v as Record<string, unknown>;
   const shards = c.shards as Record<string, unknown> | undefined;
-  if ((c.version !== 1 && c.version !== 2) || c.threshold !== 2 || c.memberId !== userId || typeof c.ceremonyId !== "string" || !/^[0-9a-f]{32}$/.test(c.ceremonyId)) fail("invalid_input");
+  if (c.version !== 1 && c.version !== 2 && c.version !== 3) return fail("invalid_input");
+  const version = c.version as CeremonyVersion;
+  if (c.threshold !== VERSION_THRESHOLD[version] || c.memberId !== userId || typeof c.ceremonyId !== "string" || !/^[0-9a-f]{32}$/.test(c.ceremonyId)) fail("invalid_input");
   if (!shards || typeof shards !== "object") fail("invalid_input");
-  const version = c.version as 1 | 2;
   const expected = VERSION_FACTORS[version];
   const out: Partial<Record<(typeof RECOVERY_FACTORS)[number], Uint8Array>> = {};
   for (const f of RECOVERY_FACTORS) {
@@ -226,9 +229,11 @@ function ceremonyOf(v: unknown, userId: string): RecoveryCeremony {
     if (b.byteLength > ENVELOPE_MAX_BYTES) fail("invalid_input");
     out[f] = b;
   }
-  const base = { ceremonyId: c.ceremonyId as string, memberId: userId, threshold: 2 as const, sealedMaster: bytes(c.sealedMaster) };
+  const base = { ceremonyId: c.ceremonyId as string, memberId: userId, sealedMaster: bytes(c.sealedMaster) };
   const core = { device_prf: out.device_prf as Uint8Array, paper_guardian: out.paper_guardian as Uint8Array, server_guardian: out.server_guardian as Uint8Array };
-  return version === 2 ? { ...base, version: 2, shards: { ...core, nfc_card: out.nfc_card as Uint8Array } } : { ...base, version: 1, shards: core };
+  if (version === 1) return { ...base, version: 1, threshold: 2, shards: core };
+  const all = { ...core, nfc_card: out.nfc_card as Uint8Array };
+  return version === 2 ? { ...base, version: 2, threshold: 2, shards: all } : { ...base, version: 3, threshold: 3, shards: all };
 }
 
 function discardVault(handle: string) {
@@ -475,13 +480,15 @@ export const handlers: Handlers = {
     if (!UUID.test(owner)) fail("invalid_input");
     const serverKey = bytes(serverFactorKey);
     if (serverKey.byteLength !== PUBLIC_KEY_BYTES) fail("invalid_input");
-    const card = cardSecret === undefined ? null : bytes(cardSecret);
+    // 3-of-4 only: without a freshly tapped ROUT Card no ceremony is begun.
+    if (cardSecret === undefined || cardSecret === null) return fail("card_required");
+    const card = bytes(cardSecret);
     const device = await loadDeviceKey(owner);
     let entropy: Uint8Array | null = null;
     let paperSecret: Uint8Array | null = null;
     let cardKeySecret: Uint8Array | null = null;
     try {
-      if (card && card.byteLength !== 32) fail("invalid_input");
+      if (card.byteLength !== 32 || card.every((b) => b === 0)) fail("invalid_input");
       if (mnemonic !== undefined) {
         try {
           entropy = masterKeyFromMnemonic(str(mnemonic, 1024));
@@ -500,13 +507,12 @@ export const handlers: Handlers = {
       wipe(login.secretKey);
       const paper = createPaperFactor(owner);
       paperSecret = paper.keys.secretKey;
-      // With a freshly tapped ROUT Card the ceremony becomes 2-of-4 (version 2).
-      const cardKeys = card ? cardFactorKeys(card, owner) : null;
-      cardKeySecret = cardKeys?.secretKey ?? null;
+      const cardKeys = cardFactorKeys(card, owner);
+      cardKeySecret = cardKeys.secretKey;
       const { draft, deviceShare } = await beginRecoveryCeremony({
         masterKey: entropy,
         memberId: owner,
-        factorPublicKeys: { paper_guardian: paper.keys.publicKey, server_guardian: serverKey, ...(cardKeys ? { nfc_card: cardKeys.publicKey } : {}) },
+        factorPublicKeys: { paper_guardian: paper.keys.publicKey, server_guardian: serverKey, nfc_card: cardKeys.publicKey },
       });
       const words = paper.mnemonic.split(" ");
       const positions = checkPositions();

@@ -1,5 +1,5 @@
 /**
- * ROUT Card recovery factor (nfc_card, ceremony version 2).
+ * ROUT Card recovery factor (nfc_card, ceremony versions 2 and 3).
  *
  * Split knowledge: the card's NDEF tap URL carries, after its SUN part, a
  * fragment `#rk1=<43 base64url chars>` holding 32 random bytes written at
@@ -8,7 +8,7 @@
  * factor key below can only be derived on a device that has just read the
  * card. The SUN part (PICCData + CMAC) stays the server's live-tap proof; the
  * server can verify taps but can never derive this factor, so ROUT's own
- * factor plus the card gate never add up to two shares.
+ * factor plus the card gate never add up to two shares (and 3 are needed).
  *
  * The fragment secret is held in a fresh buffer the caller must wipe; the
  * returned keys' `secretKey` is the caller's to wipe too.

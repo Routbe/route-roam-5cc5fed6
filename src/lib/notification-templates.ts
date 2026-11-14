@@ -409,22 +409,22 @@ const COPY: Record<NotificationKind, Record<NotificationLocale, Omit<Copy, "cta"
     nl: {
       subject: "Je herstelkluis is aangepast",
       title: "Herstelkluis aangepast",
-      body: "Je herstelkluis (2 van 3: toegangssleutel, 24 papieren woorden en ROUT) is net aangemaakt, vernieuwd of verwijderd. Oude herstelwoorden werken niet meer. Was jij dit niet? Zet je account meteen op slot via Account & Beveiliging.",
+      body: "Je herstelkluis (3 van 4: toegangssleutel, ROUT Card, 24 papieren woorden en ROUT) is net aangemaakt, vernieuwd of verwijderd. Oude herstelwoorden werken niet meer. Was jij dit niet? Zet je account meteen op slot via Account & Beveiliging.",
     },
     en: {
       subject: "Your recovery vault changed",
       title: "Recovery vault changed",
-      body: "Your recovery vault (2 of 3: passkey, 24 paper words and ROUT) was just created, renewed or removed. Old recovery words no longer work. Not you? Lock your account right away in Account & Security.",
+      body: "Your recovery vault (3 of 4: passkey, ROUT Card, 24 paper words and ROUT) was just created, renewed or removed. Old recovery words no longer work. Not you? Lock your account right away in Account & Security.",
     },
     fr: {
       subject: "Votre coffre de récupération a changé",
       title: "Coffre de récupération modifié",
-      body: "Votre coffre de récupération (2 sur 3 : clé d'accès, 24 mots papier et ROUT) vient d'être créé, renouvelé ou supprimé. Les anciens mots de récupération ne fonctionnent plus. Ce n'était pas vous ? Verrouillez votre compte dans Compte & Sécurité.",
+      body: "Votre coffre de récupération (3 sur 4 : clé d'accès, ROUT Card, 24 mots papier et ROUT) vient d'être créé, renouvelé ou supprimé. Les anciens mots de récupération ne fonctionnent plus. Ce n'était pas vous ? Verrouillez votre compte dans Compte & Sécurité.",
     },
     de: {
       subject: "Dein Wiederherstellungstresor wurde geändert",
       title: "Wiederherstellungstresor geändert",
-      body: "Dein Wiederherstellungstresor (2 von 3: Passkey, 24 Papierwörter und ROUT) wurde gerade erstellt, erneuert oder entfernt. Alte Wiederherstellungswörter funktionieren nicht mehr. Nicht du? Sperre dein Konto sofort unter Konto & Sicherheit.",
+      body: "Dein Wiederherstellungstresor (3 von 4: Passkey, ROUT Card, 24 Papierwörter und ROUT) wurde gerade erstellt, erneuert oder entfernt. Alte Wiederherstellungswörter funktionieren nicht mehr. Nicht du? Sperre dein Konto sofort unter Konto & Sicherheit.",
     },
   },
   recovery_attempt: {

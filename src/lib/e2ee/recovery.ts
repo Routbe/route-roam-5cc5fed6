@@ -1,4 +1,4 @@
-// Master Recovery Key: 24-word BIP39 mnemonic. Splitting it is the 2-of-3 ceremony in crypto-enclave/recovery-mpc.ts.
+// Master Recovery Key: 24-word BIP39 mnemonic. Splitting it is the 3-of-4 ceremony in crypto-enclave/recovery-mpc.ts.
 import { entropyToMnemonic, mnemonicToEntropy } from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english.js";
 import { wipe } from "@/lib/crypto/wipe";

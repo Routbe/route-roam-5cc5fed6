@@ -216,7 +216,7 @@ export async function publicCardProof(input: unknown, deps: Deps = {}): Promise<
 }
 
 /**
- * A live tap of the signed-in member's own, unrevoked card, for the 2-of-4
+ * A live tap of the signed-in member's own, unrevoked card, for the 3-of-4
  * recovery vault (db-pending/0267 purpose recovery_factor): verified exactly
  * like a public proof, then spent at once. Completes no step-up and reveals
  * nothing else. False for every denial, including a database without 0267.

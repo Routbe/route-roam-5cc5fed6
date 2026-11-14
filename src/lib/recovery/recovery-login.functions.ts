@@ -1,12 +1,13 @@
 /**
- * /recovery: sign-in for a member who is locked out, with 2 of their 3 or 4
- * factors (passkey, paper words, ROUT's share, and the ROUT Card on 2-of-4).
+ * /recovery: sign-in for a member who is locked out, with 3 of their 4
+ * factors (passkey, ROUT Card, paper words, ROUT's share); older 2-of-3 and
+ * 2-of-4 vaults still open with 2.
  *
  *   1. startRecoveryLogin   e-mail in; a 6-digit code goes to the account's
  *                           address. Always the same answer (no enumeration).
  *   2. openRecoveryLogin    code in; ROUT releases the stored ceremony, its own
  *                           opened share and a one-time challenge (5 min).
- *   3. the crypto worker rebuilds the Master Key from two factors, signs the
+ *   3. the crypto worker rebuilds the Master Key from the vault's threshold of factors, signs the
  *      challenge with the Master Key's login key and wipes everything; the
  *      signature is redeemed at /api/auth/recovery/verify for a session.
  *

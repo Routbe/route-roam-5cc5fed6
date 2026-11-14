@@ -5,7 +5,7 @@ const WORDS = Array.from({ length: 24 }, (_, i) => `paperword${i + 1}`);
 const mock = vi.hoisted(() => ({
   status: vi.fn(), serverKey: vi.fn(), save: vi.fn(), deviceStatus: vi.fn(),
   begin: vi.fn(), checkWords: vi.fn(), sealDevice: vi.fn(), commit: vi.fn(), discard: vi.fn(async () => null),
-  prf: vi.fn(),
+  prf: vi.fn(), capture: vi.fn(), verifyTap: vi.fn(),
 }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "00000000-0000-4000-8000-0000000000aa" } }) }));
@@ -13,6 +13,8 @@ vi.mock("@/components/auth/StepUpDialog", () => ({ withStepUp: (fn: () => unknow
 vi.mock("@/lib/auth/step-up.functions", () => ({ refreshSessionFreshness: vi.fn() }));
 vi.mock("@/lib/webauthn.functions", () => ({ addPasskey: vi.fn(async () => ({ ok: true })) }));
 vi.mock("@/lib/recovery/passkey-prf", () => ({ withPasskeyPrf: mock.prf }));
+vi.mock("@/lib/recovery/card-capture", () => ({ captureCardSecret: mock.capture, cardCaptureSupported: () => true }));
+vi.mock("@/lib/wallet/card-tap.functions", () => ({ verifyCardTapFn: mock.verifyTap }));
 vi.mock("@/lib/recovery/ceremony.functions", () => ({
   getRecoveryCeremonyStatus: mock.status, getRecoveryServerKey: mock.serverKey, saveRecoveryCeremony: mock.save,
   deleteRecoveryCeremony: vi.fn(), beginCeremonyRestore: vi.fn(), finishCeremonyRestore: vi.fn(),
@@ -26,16 +28,20 @@ vi.mock("@/lib/crypto-enclave/client", async (original) => ({
 }));
 import { RecoveryCeremonyPanel } from "./RecoveryCeremonyPanel";
 
-describe("2-of-3 recovery wizard", () => {
+const CARD = () => new Uint8Array(32).fill(0x42);
+
+describe("3-of-4 recovery wizard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mock.status.mockResolvedValue({ ceremony: null });
+    mock.status.mockResolvedValue({ canSetUp: true, ceremony: null });
+    mock.capture.mockImplementation(async () => CARD());
+    mock.verifyTap.mockResolvedValue({ status: "card_confirmed" });
     mock.deviceStatus.mockResolvedValue(null);
     mock.serverKey.mockResolvedValue({ publicKey: "AAAA" });
     mock.begin.mockResolvedValue({ handle: "h1", paperWords: WORDS.join(" "), checkPositions: [3, 11, 20], keyId: "key-1", fresh: true });
     mock.checkWords.mockImplementation(async (_h: string, answers: { position: number; word: string }[]) => ({ ok: answers.every((a) => a.word === WORDS[a.position - 1]) }));
     mock.sealDevice.mockResolvedValue({
-      ceremony: { version: 1, ceremonyId: "0".repeat(32), memberId: "m", threshold: 2, sealedMaster: new Uint8Array(60), shards: { device_prf: new Uint8Array(80), paper_guardian: new Uint8Array(80), server_guardian: new Uint8Array(80) } },
+      ceremony: { version: 3, ceremonyId: "0".repeat(32), memberId: "m", threshold: 3, sealedMaster: new Uint8Array(60), shards: { device_prf: new Uint8Array(80), paper_guardian: new Uint8Array(80), server_guardian: new Uint8Array(80), nfc_card: new Uint8Array(80).fill(1) } },
       keyId: "key-1",
       loginKey: new Uint8Array(32).fill(9),
     });
@@ -48,6 +54,31 @@ describe("2-of-3 recovery wizard", () => {
   const fillCheck = (words: Record<number, string>) => {
     for (const [p, w] of Object.entries(words)) fireEvent.change(screen.getByLabelText(`Woord ${p}`), { target: { value: w } });
   };
+
+  it("refuses to set up anything while the 3-of-4 save is not live on the database", async () => {
+    mock.status.mockResolvedValue({ canSetUp: false, ceremony: null });
+    render(<RecoveryCeremonyPanel />);
+    expect(await screen.findByRole("button", { name: /Herstelkluis instellen/ })).toBeDisabled();
+    expect(screen.getByText(/ROUT maakt geen zwakkere kluis/)).toBeInTheDocument();
+    expect(mock.begin).not.toHaveBeenCalled();
+  });
+
+  it("only begins after a ROUT Card was tapped, and only for the member's own card", async () => {
+    render(<RecoveryCeremonyPanel />);
+    fireEvent.click(await screen.findByRole("button", { name: /Herstelkluis instellen/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Beginnen/ }));
+    await screen.findByText("paperword1");
+    const [purpose, , options] = mock.capture.mock.calls[0];
+    expect(purpose).toBe("setup");
+    // The own-card check asks the server with purpose recovery_factor.
+    expect(await options.confirmOwnTap({ p: "a".repeat(32), m: "b".repeat(16) })).toBe(true);
+    expect(mock.verifyTap).toHaveBeenCalledWith({ data: { p: "a".repeat(32), m: "b".repeat(16), purpose: "recovery_factor" } });
+    mock.verifyTap.mockResolvedValueOnce({ status: "card_denied" });
+    expect(await options.confirmOwnTap({ p: "a".repeat(32), m: "b".repeat(16) })).toBe(false);
+    const [, , card, words] = mock.begin.mock.calls[0];
+    expect(card).toBeInstanceOf(Uint8Array);
+    expect(words).toBeUndefined();
+  });
 
   it("shows the 24 words, drops them on confirmation, and demands 3 correct words before the passkey", async () => {
     render(<RecoveryCeremonyPanel />);
@@ -89,6 +120,8 @@ describe("2-of-3 recovery wizard", () => {
     ]);
     expect(mock.save).toHaveBeenCalledTimes(1);
     expect(mock.save.mock.calls[0][0].data.deviceCredential).toBe("credential-1");
+    expect(mock.save.mock.calls[0][0].data.ceremony.version).toBe(3);
+    expect(typeof mock.save.mock.calls[0][0].data.ceremony.shards.nfc_card).toBe("string");
     expect(mock.commit).toHaveBeenCalledWith("h1", "00000000-0000-4000-8000-0000000000aa");
   });
 
@@ -125,7 +158,7 @@ describe("2-of-3 recovery wizard", () => {
     fireEvent.change(field, { target: { value: master } });
     fireEvent.click(begin);
     await screen.findByText("paperword1");
-    expect(mock.begin).toHaveBeenCalledWith("00000000-0000-4000-8000-0000000000aa", expect.any(Uint8Array), master);
+    expect(mock.begin).toHaveBeenCalledWith("00000000-0000-4000-8000-0000000000aa", expect.any(Uint8Array), expect.any(Uint8Array), master);
   });
 
   it("discards the worker ceremony when the member cancels", async () => {

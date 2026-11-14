@@ -15,7 +15,8 @@ export function ceremonyMessage(e: unknown): string {
     if (e.code === "invalid_mnemonic") return "Deze woorden kloppen niet. Controleer elk woord en de volgorde.";
     if (e.code === "key_mismatch") return "Deze woorden horen bij een andere hoofdsleutel dan die op dit toestel.";
     if (e.code === "master_key_required") return "Dit toestel heeft al een hoofdsleutel. Typ eerst je huidige 24 herstelwoorden.";
-    if (e.code === "decrypt_failed") return "Dit stuk opent je herstelkluis niet. Controleer of het bij deze kluis hoort.";
+    if (e.code === "decrypt_failed") return "Deze stukken openen je herstelkluis niet. Controleer of ze bij deze kluis horen.";
+    if (e.code === "card_required") return "Tik eerst je ROUT Card. Zonder kaart maakt ROUT geen herstelkluis.";
     if (e.code === "unknown_handle") return "Deze stap is verlopen. Begin opnieuw.";
     if (e.code === "enclave_unavailable") return "Je browser blokkeert de beveiligde rekenmodule.";
     return `Er ging iets mis in de beveiligde rekenmodule (${e.code}). Probeer opnieuw.`;

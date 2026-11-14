@@ -67,6 +67,48 @@ export function cardSecretFromNdefRecords(records: readonly NdefRecordLike[]): U
 }
 
 /**
+ * The live tap and its recovery secret from the same NDEF URL record, so the
+ * server can confirm the card the secret came from. Secret: a fresh buffer the caller wipes.
+ */
+export function cardFactorFromNdefRecords(records: readonly NdefRecordLike[]): { tap: CardTapParams; secret: Uint8Array } | null {
+  for (const r of records) {
+    if ((r.recordType !== "url" && r.recordType !== "absolute-url") || !r.data) continue;
+    const url = new TextDecoder().decode(r.data);
+    const tap = parseCardTapUrl(url);
+    if (!tap) continue;
+    const secret = cardSecretFromUrl(url);
+    if (secret) return { tap, secret };
+  }
+  return null;
+}
+
+/**
+ * Reads ROUT Card recovery factors with Web NFC (Chrome on Android) until the
+ * signal aborts: onFactor gets every tap that carries a valid fragment (and owns
+ * the secret), onNoFragment every card not yet re-personalised.
+ */
+export async function scanCardFactors(
+  signal: AbortSignal,
+  onFactor: (factor: { tap: CardTapParams; secret: Uint8Array }) => void,
+  onNoFragment?: () => void,
+): Promise<void> {
+  const Ctor = ndefCtor();
+  if (!Ctor) throw new Error("web_nfc_unavailable");
+  const reader = new Ctor();
+  reader.addEventListener("reading", (e) => {
+    const records = (e as NdefReadingEvent).message?.records ?? [];
+    const factor = cardFactorFromNdefRecords(records);
+    if (signal.aborted) {
+      factor?.secret.fill(0);
+      return;
+    }
+    if (factor) onFactor(factor);
+    else if (tapFromNdefRecords(records)) onNoFragment?.();
+  }, { signal });
+  await reader.scan({ signal });
+}
+
+/**
  * Reads one ROUT Card recovery secret with Web NFC (Chrome on Android). Resolves
  * with the first tap that carries a valid fragment; a card without one (not yet
  * re-personalised) calls onNoFragment and keeps listening. Rejects when NFC is
@@ -118,8 +160,10 @@ export async function scanCardTaps(signal: AbortSignal, onTap: (tap: CardTapPara
  * completes an open step-up, so an unrelated tap cannot approve a request
  * started elsewhere (for example from a stolen session).
  */
-export type CardTapPurpose = "proof" | "step_up";
-export function cardTapRoute(purpose: CardTapPurpose, signedIn: boolean): "step_up" | "proof" | "refuse" {
+export type CardTapPurpose = "proof" | "step_up" | "recovery_factor";
+/** recovery_factor: "this is my own card" before a recovery shard is sealed to it (db-pending/0267); signed-in only. */
+export function cardTapRoute(purpose: CardTapPurpose, signedIn: boolean): "step_up" | "recovery_factor" | "proof" | "refuse" {
   if (purpose === "step_up") return signedIn ? "step_up" : "refuse";
+  if (purpose === "recovery_factor") return signedIn ? "recovery_factor" : "refuse";
   return "proof";
 }
