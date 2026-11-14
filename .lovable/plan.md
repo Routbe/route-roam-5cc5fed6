@@ -240,3 +240,40 @@ Repo: route-roam-09e66f25 (bevestigd). Alles draait op eigen infrastructuur, er 
 2. Stap 1: de testsuite tot 0 rood, en CLS en contrast opnieuw meten.
 3. De rollback-SQL voor 0267 schrijven, de TypeScript-wrapper uit H.6 bouwen en de controles vooraf alleen-lezen op Neon draaien.
 4. Je de resultaten laten zien. Migratie 0267 gaat pas naar Neon na je expliciete GO in een volgend bericht.
+
+## I. Zes Level-9-regels (in AGENTS.md en de roadmap)
+1. **HACL*/EverCrypt-Wasm:**
+   - Crypto-Wasm wordt gebouwd uit geverifieerde F*-bron (HACL*). Dat geldt voor Argon2-primitieven, X25519, SHA-2/3, HKDF en ChaCha/AES.
+   - Grens: HACL* heeft geen geverifieerde ML-KEM-, BBS+- of Bulletproofs-implementatie. Die modules blijven op geauditeerde libraries, en dat wordt per module vastgelegd.
+2. **Sphinx-pakketten tussen gast en host:**
+   - Dit vraagt een mix-netwerk met minstens 3 onafhankelijke eigen knooppunten, op eigen infrastructuur.
+   - Wordt een apart plan in Fase F. Tot dan blijft het een ontwerpregel.
+3. **Paillier en differential privacy voor statistieken:**
+   - Hosts zien alleen totalen met DP-ruis (een epsilon-budget per host).
+   - Grens: Paillier is niet post-quantum. Ik stel daarom voor de DP-ruis per totaal te combineren met een PQ-veilig MPC-schema of latticegebaseerde HE (BFV). Paillier dan alleen als jij daar bewust voor kiest.
+4. **FIPS 140-3 L3 / EAL6+ attestatie:**
+   - Telt alleen voor het **goud/obsidiaan**-label, bijvoorbeeld via een gecertificeerde YubiKey/NXP-chip uit MDS3.
+   - Voor niveau 2 zou dit verplichten bijna alle telefoon-passkeys blokkeren. Dat botst met "niemand blokkeren". Niveau 2 blijft daarom een gewone passkey, en "gecertificeerd" wordt een extra kenmerk.
+5. **LMS/HSS-ondertekening van migraties (RFC 8554):**
+   - Elk manifest van db/ (bestandsnaam + SHA-256) wordt ondertekend met een stateful LMS-sleutel.
+   - Die sleutel staat offline bij jou. De runner weigert een migratie zonder geldige handtekening.
+   - De sleutelstatus mag nooit hergebruikt worden. Er komt een procedure voor.
+6. **Vast Wasm-geheugen:**
+   - Elke Wasm-module krijgt een vaste geheugengrootte (initial = maximum, geen memory.grow) en geen dynamische allocator.
+   - Bij teardown wordt het hele lineaire geheugen met nullen overschreven, en een test controleert dat.
+
+## J. Concrete oplevering van deze ronde (na goedkeuring)
+1. AGENTS.md en de roadmap bijwerken met F, H en I.
+2. De volledige testsuite tot exact 0 rood, inclusief het stabiliseren van de wisselvallige preview-test.
+   - CLS en AAA opnieuw meten over alle viewports.
+   - Eerlijk: de huidige maximale CLS is precies 0,0007, dus "< 0,0007" haal ik niet gegarandeerd. Ik rapporteer de werkelijke waarde en meet op ≤ 0,0007.
+3. Schrijven:
+   - `db-pending/0267_card_recovery_factor_tap_rollback.sql`;
+   - de wrapper `consumeSdmTap()` met de Zod-discriminated union en `TapDenied`, plus tests.
+4. Een PGlite-replay van db/ + 0267 + rollback + 0267 opnieuw. Daarna alleen-lezen controles op Neon (alleen SELECT).
+5. In mijn antwoord krijg je:
+   - de testresultaten en meetwaarden;
+   - de volledige rollback-SQL;
+   - de code van de wrapper;
+   - de uitkomsten van de replay en de Neon-controles.
+6. Er gaat niets naar Neon zonder je aparte GO.
