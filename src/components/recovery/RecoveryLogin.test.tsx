@@ -2,10 +2,11 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const MEMBER = "00000000-0000-4000-8000-0000000000aa";
-const mock = vi.hoisted(() => ({ start: vi.fn(), open: vi.fn(), recoverLogin: vi.fn(), prf: vi.fn(), fromWire: vi.fn() }));
+const mock = vi.hoisted(() => ({ start: vi.fn(), open: vi.fn(), recoverLogin: vi.fn(), prf: vi.fn(), fromWire: vi.fn(), capture: vi.fn() }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
 vi.mock("@/lib/recovery/recovery-login.functions", () => ({ startRecoveryLogin: mock.start, openRecoveryLogin: mock.open }));
 vi.mock("@/lib/recovery/passkey-prf", () => ({ withPasskeyPrf: mock.prf }));
+vi.mock("@/lib/recovery/card-capture", () => ({ captureCardSecret: mock.capture, cardCaptureSupported: () => true }));
 vi.mock("@/lib/recovery/ceremony-wire", async (original) => ({
   ...await original<typeof import("@/lib/recovery/ceremony-wire")>(),
   ceremonyFromWire: mock.fromWire,
