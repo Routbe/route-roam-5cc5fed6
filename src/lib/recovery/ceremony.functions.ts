@@ -32,6 +32,15 @@ function ceremonyVersionOf(v: unknown): 1 | 2 | 3 {
   return n === 3 ? 3 : n === 2 ? 2 : 1;
 }
 
+const PUT_V3 = "public.rout_recovery_ceremony_put_v3(text,text,text,text,text,text,text,text,text)";
+
+/** Whether this database can store a 3-of-4 vault (db-pending/0268 applied). */
+async function canStoreVersion3(): Promise<boolean> {
+  const { sql } = await import("@/lib/neon");
+  const rows = (await sql`select to_regprocedure(${PUT_V3}) is not null as ok`) as { ok: boolean }[];
+  return rows[0]?.ok === true;
+}
+
 /** Postgres "undefined function": the 3-of-4 save (db-pending/0268) is not on this database yet. */
 const isMissingFunction = (e: unknown) => typeof e === "object" && e !== null && (e as { code?: unknown }).code === "42883";
 
@@ -49,6 +58,8 @@ export const getRecoveryCeremonyStatus = createServerFn({ method: "GET" })
     const r = rows[0];
     const login = r ? ((await sql`select public.rout_recovery_ceremony_login_key() is not null as ok`) as { ok: boolean }[]) : [];
     return {
+      /** False until db-pending/0268 is live: setting up a vault is then refused instead of saving anything weaker. */
+      canSetUp: await canStoreVersion3(),
       ceremony: r
         ? { ceremonyId: r.ceremony_id, keyId: r.key_id, createdAt: String(r.created_at), canSignIn: login[0]?.ok === true, version: ceremonyVersionOf(r.ceremony_version) }
         : null,
@@ -70,6 +81,8 @@ export const saveRecoveryCeremony = createServerFn({ method: "POST" })
     z.object({ ceremony: wireSchema, deviceCredential: credentialSchema, loginKey: z.string().regex(/^[A-Za-z0-9+/]{43}=$/) }).parse(d),
   )
   .handler(async ({ data, context }) => {
+    // Checked before the step-up, so a passkey confirmation is never spent on a save that cannot happen.
+    if (!(await canStoreVersion3())) return { ok: false as const, error: "schema_pending" };
     const { requirePasskeyStepUp } = await import("@/lib/auth/step-up-guard.server");
     await requirePasskeyStepUp(context.userId, "recovery_vault");
     const { ceremonyFromWire } = await import("./ceremony-wire");
