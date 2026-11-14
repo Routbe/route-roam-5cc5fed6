@@ -1,34 +1,30 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, FileText, Fingerprint, KeyRound, Mail, Server } from "lucide-react";
+import { Check, Fingerprint, KeyRound, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { enclave } from "@/lib/crypto-enclave/client";
 import type { RecoveryCeremony } from "@/lib/crypto-enclave/recovery-mpc";
-import { ceremonyFromWire, fromB64, toB64, wordCount } from "@/lib/recovery/ceremony-wire";
+import { ceremonyFromWire, fromB64, toB64, wordCount, WIRE_THRESHOLD } from "@/lib/recovery/ceremony-wire";
 import { openRecoveryLogin, startRecoveryLogin } from "@/lib/recovery/recovery-login.functions";
 import { ceremonyMessage, takeValue } from "./ceremony-ui";
+import { CardWait, FactorPicker, type FactorId } from "./FactorPicker";
 
 type Step = "email" | "code" | "factors";
-type Combo = "rout_paper" | "rout_passkey" | "passkey_paper";
 /** What ROUT released after the e-mail code. Kept in a ref, never in state; the share is zero-filled on leave. */
 type Opened = { memberId: string; ceremony: RecoveryCeremony; keyId: string; serverShare: Uint8Array; deviceCredential: string; challenge: string };
 
 const STEPS: { id: Step; label: string }[] = [
   { id: "email", label: "E-mail" },
   { id: "code", label: "Code" },
-  { id: "factors", label: "Twee stukken" },
-];
-const COMBOS: { id: Combo; title: string; detail: string; icons: [typeof Server, typeof Server] }[] = [
-  { id: "rout_paper", title: "ROUT + mijn papieren woorden", detail: "Voor als je je toegangssleutel kwijt bent.", icons: [Server, FileText] },
-  { id: "rout_passkey", title: "ROUT + mijn toegangssleutel", detail: "Voor als je je papier niet bij de hand hebt.", icons: [Server, Fingerprint] },
-  { id: "passkey_paper", title: "Mijn toegangssleutel + papieren woorden", detail: "Zonder het stuk van ROUT.", icons: [Fingerprint, FileText] },
+  { id: "factors", label: "Drie stukken" },
 ];
 
 /**
  * /recovery: sign in when locked out. ROUT's own piece is released only after
- * the e-mail code; the crypto worker rebuilds the Master Key from two pieces,
+ * the e-mail code; the crypto worker rebuilds the Master Key from the vault's
+ * threshold of pieces (3 of 4: ROUT, passkey, ROUT Card, paper words),
  * signs ROUT's one-time challenge and wipes the pieces and the key. Typed words
  * stay in an uncontrolled field and are cleared the moment they are read.
  */
@@ -38,7 +34,10 @@ export function RecoveryLogin() {
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  const [combo, setCombo] = useState<Combo>("rout_paper");
+  const [picked, setPicked] = useState<FactorId[]>(["rout"]);
+  const [need, setNeed] = useState(3);
+  const [available, setAvailable] = useState<FactorId[]>(["rout", "passkey", "card", "paper"]);
+  const [waitingCard, setWaitingCard] = useState(false);
   const [paperCount, setPaperCount] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,26 +81,37 @@ export function RecoveryLogin() {
         memberId: r.memberId, ceremony: ceremonyFromWire(r.ceremony, r.memberId), keyId: r.ceremony.keyId,
         serverShare: fromB64(r.serverShare), deviceCredential: r.deviceCredential, challenge: r.challenge,
       };
+      setNeed(WIRE_THRESHOLD[r.ceremony.version]);
+      setAvailable(r.ceremony.version === 1 ? ["rout", "passkey", "paper"] : ["rout", "passkey", "card", "paper"]);
+      setPicked(["rout"]);
       setStep("factors");
     } catch { setError("Deze code klopt niet of is verlopen."); } finally { setBusy(false); }
   }
 
-  async function recover(e: React.FormEvent) {
+  function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (picked.length !== need) return;
+    if (picked.includes("card")) setWaitingCard(true);
+    else void recover();
+  }
+
+  async function recover(cardSecret?: Uint8Array) {
+    setWaitingCard(false);
     const o = opened.current;
-    if (!o) return restart("Deze stap is verlopen. Begin opnieuw.");
+    if (!o) {
+      cardSecret?.fill(0);
+      return restart("Deze stap is verlopen. Begin opnieuw.");
+    }
     setBusy(true); setError(null);
-    const usesPaper = combo !== "rout_passkey";
-    const usesPasskey = combo !== "rout_paper";
     try {
-      const paperWords = usesPaper ? takeValue(paperField) : undefined;
+      const paperWords = picked.includes("paper") ? takeValue(paperField) : undefined;
       setPaperCount(0);
       // A copy travels (transferred, so it leaves this thread); the original is wiped in forget().
-      const serverShare = combo === "passkey_paper" ? undefined : o.serverShare.slice();
+      const serverShare = picked.includes("rout") ? o.serverShare.slice() : undefined;
       const call = (prf?: Uint8Array) =>
-        enclave.ceremony.recoverLogin({ userId: o.memberId, ceremony: o.ceremony, keyId: o.keyId, challenge: o.challenge, prf, paperWords, serverShare });
+        enclave.ceremony.recoverLogin({ userId: o.memberId, ceremony: o.ceremony, keyId: o.keyId, challenge: o.challenge, prf, paperWords, serverShare, cardSecret });
       let result: { signature: Uint8Array };
-      if (usesPasskey) {
+      if (picked.includes("passkey")) {
         const { withPasskeyPrf } = await import("@/lib/recovery/passkey-prf");
         result = await withPasskeyPrf("ceremony", (prf) => call(prf), o.deviceCredential);
       } else {
@@ -119,18 +129,21 @@ export function RecoveryLogin() {
       window.location.assign("/auth/continue");
     } catch (err) {
       setError(ceremonyMessage(err));
-    } finally { setBusy(false); }
+    } finally {
+      cardSecret?.fill(0); // no-op once transferred
+      setBusy(false);
+    }
   }
 
   const current = STEPS.findIndex((s) => s.id === step);
-  const needsPaper = combo !== "rout_passkey";
+  const needsPaper = picked.includes("paper");
 
   return (
     <main className="mx-auto max-w-md space-y-6 px-5 py-14">
       <header className="space-y-2">
-        <p className="flex items-center gap-2 text-sm text-muted-foreground"><KeyRound className="size-4" /> Herstelkluis · 2 van 3</p>
+        <p className="flex items-center gap-2 text-sm text-muted-foreground"><KeyRound className="size-4" /> Herstelkluis · 3 van 4</p>
         <h1 className="text-2xl font-semibold">Inloggen met herstel</h1>
-        <p className="text-sm text-muted-foreground">Buitengesloten? Met 2 van je 3 stukken krijg je je account en je hoofdsleutel terug. Eén stuk alleen opent niets.</p>
+        <p className="text-sm text-muted-foreground">Buitengesloten? Met 3 van je 4 stukken krijg je je account en je hoofdsleutel terug: je toegangssleutel, je ROUT Card, je papieren woorden en het stuk van ROUT. Twee stukken samen openen niets.</p>
       </header>
 
       <ol className="grid grid-cols-3 gap-2" aria-label="Stappen">
@@ -167,31 +180,21 @@ export function RecoveryLogin() {
         )}
 
         {step === "factors" && (
-          <form className="space-y-4" onSubmit={(e) => void recover(e)}>
-            <fieldset className="space-y-2">
-              <legend className="mb-2 text-sm font-medium">Welke twee stukken gebruik je?</legend>
-              {COMBOS.map((c) => {
-                const [A, B] = c.icons;
-                return (
-                  <label key={c.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm ${combo === c.id ? "border-primary bg-background" : "border-border"}`}>
-                    <input type="radio" name="recovery-combo" value={c.id} checked={combo === c.id} onChange={() => setCombo(c.id)} className="mt-1" />
-                    <span className="space-y-0.5">
-                      <span className="flex items-center gap-1.5 font-medium"><A className="size-4" /><B className="size-4" /> {c.title}</span>
-                      <span className="block text-xs text-muted-foreground">{c.detail}</span>
-                    </span>
-                  </label>
-                );
-              })}
-            </fieldset>
+          <form className="space-y-4" onSubmit={submit}>
+            <FactorPicker available={available} selected={picked} need={need} onChange={setPicked} disabled={busy || waitingCard} />
             {needsPaper && (
               <div className="space-y-2">
                 <label htmlFor="recovery-paper-words" className="text-sm font-medium">Je 24 papieren woorden</label>
                 <Textarea id="recovery-paper-words" ref={paperField} defaultValue="" onChange={(e) => setPaperCount(wordCount(e.target.value))} rows={3} autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false} className="font-mono" placeholder="woord1 woord2 woord3 …" />
               </div>
             )}
-            <Button type="submit" className="w-full" disabled={busy || signedIn || (needsPaper && paperCount !== 24)}>
-              {combo === "rout_paper" ? <KeyRound /> : <Fingerprint />} {combo === "rout_paper" ? "Herstellen en inloggen" : "Bevestigen met toegangssleutel"}
-            </Button>
+            {waitingCard ? (
+              <CardWait purpose="login" onSecret={(secret) => void recover(secret)} onCancel={() => setWaitingCard(false)} />
+            ) : (
+              <Button type="submit" className="w-full" disabled={busy || signedIn || picked.length !== need || (needsPaper && paperCount !== 24)}>
+                {picked.includes("passkey") ? <Fingerprint /> : <KeyRound />} {picked.includes("passkey") ? "Bevestigen met toegangssleutel" : "Herstellen en inloggen"}
+              </Button>
+            )}
             <p className="text-xs text-muted-foreground">Alles gebeurt in de beveiligde rekenmodule van je browser. Na het inloggen worden de stukken en de sleutel meteen gewist. Je krijgt van elke poging een e-mail.</p>
           </form>
         )}
