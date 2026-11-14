@@ -138,3 +138,67 @@ Repo: route-roam-09e66f25 (bevestigd). Alles draait op eigen infrastructuur, er 
 ## E. Wat jij moet aanleveren
 - Een GO per migratie: 0267 nu, de rest pas als ik ze aan je voorleg.
 - Een fysieke ROUT Card en een telefoon voor de echte test van de kaart en de attestatie.
+
+---
+
+## F. Extra bindende regels (worden in AGENTS.md vastgelegd, gelden voor Fase B t/m G)
+1. **COOP/COEP:** `Cross-Origin-Opener-Policy: same-origin` en `Cross-Origin-Embedder-Policy: require-corp` op de beveiligde schermen.
+   - Eerst wordt gecontroleerd welke externe bronnen (fonts, afbeeldingen, Didit) dan breken. De openbare pagina's krijgen dit pas als niets meer breekt.
+2. **Deterministische Wasm en SRI:** elke Wasm-module wordt reproduceerbaar gebouwd, krijgt een vastgepinde SHA-384 en weigert te laden bij een afwijkende hash.
+3. **Offline herroepingscertificaten:** een kaart ontkoppelen kan alleen met een certificaat dat door 2 van 3 drempeldelen is ondertekend.
+4. **Constant-time:**
+   - Crypto-code mag niet vertakken op geheime data. Een lint-regel en een dudect-timingtest draaien in CI.
+   - Eerlijke grens: JavaScript en de browser garanderen geen nanoseconde-gelijkheid. De test werkt daarom met een statistische drempel (Welch t < 4,5).
+5. **Wissen bij achtergrond, blur en unload:** bij `visibilitychange` (hidden), `blur`, `pagehide`/`beforeunload` en het stoppen van een worker wordt het Wasm-geheugen gewist. Ontsleutelde sleutels worden vergrendeld, zodat je na terugkeer opnieuw moet ontgrendelen.
+   - Afweging: `blur` vergrendelt ook bij elke klik naar een ander venster. Ik stel voor dat `blur` alleen het geheugen van lopende bewerkingen wist en dat `hidden` vergrendelt.
+6. **VDF-verankering van de ledger:**
+   - De Merkle-root van booking_events en de audit-logs gaat periodiek door een Wesolowski-VDF (klassegroep).
+   - Het bewijs wordt opgeslagen en elke client kan het controleren.
+7. **Noise_IKpsk2 / PQ-mTLS tussen web-runtime en Omni-Worker:**
+   - Wederzijds geauthenticeerd, met een hybride PQ-psk.
+   - Sleutels alleen uit eigen geheimen.
+
+## G. Migratie 0267 ter controle (direct na goedkeuring van dit plan)
+
+**Wat hij doet**
+- De kaartcontrole krijgt een derde doel bij `vault_enclave.consume_sdm_tap`: `recovery_factor`.
+- Een live tap bewijst dan "dit is mijn eigen, niet-ingetrokken kaart" voordat een herstel-deel aan de kaart wordt gekoppeld.
+- Er komt geen nieuwe tabel en geen nieuw recht. Eigenaar, handtekening en rechten blijven gelijk.
+
+**SQL (68 regels, bestand db-pending/0267_card_recovery_factor_tap.sql)**
+- De check-constraint `sdm_tap_grants_purpose` wordt vervangen. Toegestaan: public_proof, step_up en recovery_factor.
+- `consume_sdm_tap(text, text)` wordt opnieuw gedefinieerd:
+  - SECURITY DEFINER met search_path = pg_catalog, pg_temp;
+  - de aanroeper komt uit de transactie-context;
+  - een grant kan maar één keer gebruikt worden (FOR UPDATE);
+  - ingetrokken kaarten en kaarten van een ander lid worden geweigerd;
+  - elke uitkomst komt op het audit-log;
+  - weigeringen geven granted=false terug in plaats van een fout.
+- REVOKE voor PUBLIC en GRANT EXECUTE aan rout_app. Een DO-blok stopt de migratie als PUBLIC toch mag uitvoeren of als rout_app tabelrechten in vault_enclave heeft.
+
+**Risico's**
+- *Laag:* bestaande aanroepen (public_proof, step_up) gedragen zich exact hetzelfde. Die logica is ongewijzigd ten opzichte van db/0258.
+- *Constraint-wissel:* de oude constraint verdwijnt voor de nieuwe er staat. Dat gebeurt binnen één transactie, dus er is geen moment zonder constraint.
+- *Vergrendeling:* ALTER TABLE vergrendelt sdm_tap_grants kort. Taps die op dat moment binnenkomen wachten even; er gaat geen data verloren.
+- *Code:* recovery_factor wordt pas gebruikt door de herstel-code. Tot die code live staat, wordt het nieuwe doel nergens aangeroepen.
+- *Geschiedenis:* er komt een nieuwe rij in schema_migrations. Daarna gaat CODE_SCHEMA_LEVEL naar 0267 en verhuist het bestand van db-pending naar db.
+
+**Controles vooraf (alleen-lezen op Neon)**
+- Er bestaat geen rij met consumed_for buiten de twee huidige waarden.
+- De huidige functie-definitie is gelijk aan die in db/0258.
+- Een PGlite-replay van db/ plus 0267 is groen.
+
+**Terugdraaiplan**
+- Een aparte rollback-SQL die:
+  - eerst controleert dat er geen rij met consumed_for = 'recovery_factor' is (anders stopt hij);
+  - de constraint terugzet op twee doelen;
+  - de functie letterlijk herstelt uit db/0258;
+  - de rechten opnieuw expliciet zet;
+  - hetzelfde DO-blok draait.
+- Ook voor de rollback geldt een aparte GO.
+
+**Na jouw GO voor Neon**
+1. De controles vooraf.
+2. Toepassen in één transactie.
+3. Rechten, checksum en audit controleren.
+4. Het bestand naar db/, het schema-niveau naar 0267 en de testsuite draaien.
