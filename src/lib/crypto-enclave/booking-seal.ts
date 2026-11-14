@@ -9,7 +9,7 @@
  *   bkh  host copy   sealed to the host's booking key (member_device). The
  *                    host's key seed is random and kept sealed under the
  *                    workspace key, which comes from the Master Key, so the
- *                    2-of-4 recovery also restores every booking.
+ *                    3-of-4 recovery also restores every booking.
  *   bkg  guest copy  sealed to a key derived from a 32-byte seed that lives
  *                    only in the guest's manage-link fragment (#bg1=…), which
  *                    browsers never send to a server.

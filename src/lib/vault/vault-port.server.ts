@@ -44,7 +44,7 @@ export type SdmTapChallenge = {
   readonly envelope: Uint8Array;
   readonly lastCounter: number | null;
 };
-/** recovery_factor (db-pending/0267): own, unrevoked card for the 2-of-4 recovery vault; spends the grant, completes nothing. */
+/** recovery_factor (db-pending/0267): own, unrevoked card for the 3-of-4 recovery vault; spends the grant, completes nothing. */
 export type SdmTapPurpose = "public_proof" | "step_up" | "recovery_factor";
 export type SdmCardState = "active" | "unactivated";
 /** What a card step-up proof will cover: one card action, or general sensitive actions. */

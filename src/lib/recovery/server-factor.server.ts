@@ -1,5 +1,5 @@
 /**
- * ROUT's own factor in the 2-of-3 recovery ceremony ("server_guardian").
+ * ROUT's own factor in the 3-of-4 recovery ceremony ("server_guardian").
  *
  * The factor secret is derived per member from ROUT_RECOVERY_FACTOR_SECRET
  * (read at call time, never at module scope) with HKDF-SHA-256 under its own
