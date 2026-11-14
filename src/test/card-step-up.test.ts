@@ -177,5 +177,8 @@ describe("card step-up rules", () => {
     expect(cardTapRoute("proof", false)).toBe("proof");
     expect(cardTapRoute("step_up", true)).toBe("step_up");
     expect(cardTapRoute("step_up", false)).toBe("refuse");
+    // "This is my own card" for the recovery vault: signed-in only, never a proof or a step-up.
+    expect(cardTapRoute("recovery_factor", true)).toBe("recovery_factor");
+    expect(cardTapRoute("recovery_factor", false)).toBe("refuse");
   });
 });
