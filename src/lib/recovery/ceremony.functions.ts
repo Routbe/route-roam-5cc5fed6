@@ -1,8 +1,10 @@
 /**
- * Recovery ceremony (2-of-3, or 2-of-4 with a ROUT Card shard): server
- * boundary. The server stores only RVE1 envelopes and can open only its own
- * shard (server_guardian); a save in which any other shard is sealed to ROUT's
- * key is refused, so ROUT never holds two shares. Saving or
+ * Recovery ceremony (3-of-4: passkey, ROUT Card, paper words, ROUT's share):
+ * server boundary. Only version 3 is saved (db-pending/0268
+ * rout_recovery_ceremony_put_v3); older versions are only read. The server
+ * stores only RVE1 envelopes and can open only its own shard
+ * (server_guardian); a save in which any other shard is sealed to ROUT's key
+ * is refused, so ROUT never holds two shares, let alone three. Saving or
  * deleting needs a fresh passkey step-up; a restore hands out the stored
  * ceremony plus the opened server share, is rate limited fail-closed and
  * always e-mails the owner.
@@ -17,18 +19,28 @@ const wireSchema = z.object({
   ceremonyId: z.string().regex(CEREMONY_ID_RE),
   keyId: z.string().min(8).max(200).regex(/^[A-Za-z0-9_-]+$/),
   sealedMaster: z.string().min(40).max(MASTER_B64_MAX).regex(B64_RE),
-  // nfc_card present = version 2 (2-of-4, db/0266). strict(): an unknown shard is
-  // refused, never stripped, so no ceremony is saved that can no longer open.
-  shards: z.object({ device_prf: shard, paper_guardian: shard, server_guardian: shard, nfc_card: shard.optional() }).strict(),
-});
+  // Only 3-of-4 is saved: the card shard is required. strict(): an unknown shard
+  // or field is refused, never stripped, so no ceremony is saved that can no longer open.
+  version: z.literal(3),
+  shards: z.object({ device_prf: shard, paper_guardian: shard, server_guardian: shard, nfc_card: shard }).strict(),
+}).strict();
 const credentialSchema = z.string().min(8).max(1400).regex(/^[A-Za-z0-9+/=_-]+$/);
+
+/** Unknown versions read as 1 (outdated) so the UI asks for a new 3-of-4 vault instead of trusting it. */
+function ceremonyVersionOf(v: unknown): 1 | 2 | 3 {
+  const n = Number(v);
+  return n === 3 ? 3 : n === 2 ? 2 : 1;
+}
+
+/** Postgres "undefined function": the 3-of-4 save (db-pending/0268) is not on this database yet. */
+const isMissingFunction = (e: unknown) => typeof e === "object" && e !== null && (e as { code?: unknown }).code === "42883";
 
 async function audit(userId: string, eventType: string, payload: Record<string, unknown> = {}) {
   const { recordSecurityEvent } = await import("@/lib/audit-log.server");
   await recordSecurityEvent({ eventType, userId, payload });
 }
 
-/** Status only: whether a ceremony exists, for which Master Key, and 2-of-3 or 2-of-4. */
+/** Status only: whether a ceremony exists, for which Master Key, and its version (3 = 3-of-4; 1 and 2 are outdated). */
 export const getRecoveryCeremonyStatus = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async () => {
@@ -38,7 +50,7 @@ export const getRecoveryCeremonyStatus = createServerFn({ method: "GET" })
     const login = r ? ((await sql`select public.rout_recovery_ceremony_login_key() is not null as ok`) as { ok: boolean }[]) : [];
     return {
       ceremony: r
-        ? { ceremonyId: r.ceremony_id, keyId: r.key_id, createdAt: String(r.created_at), canSignIn: login[0]?.ok === true, version: (Number(r.ceremony_version) === 2 ? 2 : 1) as 1 | 2 }
+        ? { ceremonyId: r.ceremony_id, keyId: r.key_id, createdAt: String(r.created_at), canSignIn: login[0]?.ok === true, version: ceremonyVersionOf(r.ceremony_version) }
         : null,
     };
   });
@@ -65,9 +77,10 @@ export const saveRecoveryCeremony = createServerFn({ method: "POST" })
     const c = data.ceremony;
     // The server shard must be sealed to ROUT's key for this member and open.
     const ceremony = ceremonyFromWire(c, context.userId);
+    if (ceremony.version !== 3) return { ok: false as const, error: "version_refused" };
     if (!isOwnServerShard(context.userId, ceremony.shards.server_guardian)) return { ok: false as const, error: "server_shard_mismatch" };
     // No other shard may be sealed to ROUT's key: ROUT must never hold two shares.
-    const others = [ceremony.shards.device_prf, ceremony.shards.paper_guardian, ...(ceremony.version === 2 ? [ceremony.shards.nfc_card] : [])];
+    const others = [ceremony.shards.device_prf, ceremony.shards.paper_guardian, ceremony.shards.nfc_card];
     if (others.some((s) => isOwnServerShard(context.userId, s))) return { ok: false as const, error: "server_shard_mismatch" };
     try {
       openServerShard(ceremony, context.userId).fill(0);
@@ -75,10 +88,12 @@ export const saveRecoveryCeremony = createServerFn({ method: "POST" })
       return { ok: false as const, error: "server_shard_mismatch" };
     }
     const { sql } = await import("@/lib/neon");
-    if (c.shards.nfc_card === undefined) {
-      await sql`select public.rout_recovery_ceremony_put(${c.ceremonyId}, ${c.keyId}, ${c.sealedMaster}, ${c.shards.device_prf}, ${c.shards.paper_guardian}, ${c.shards.server_guardian}, ${data.deviceCredential}, ${data.loginKey})`;
-    } else {
-      await sql`select public.rout_recovery_ceremony_put(${c.ceremonyId}, ${c.keyId}, ${c.sealedMaster}, ${c.shards.device_prf}, ${c.shards.paper_guardian}, ${c.shards.server_guardian}, ${c.shards.nfc_card}, ${data.deviceCredential}, ${data.loginKey})`;
+    try {
+      await sql`select public.rout_recovery_ceremony_put_v3(${c.ceremonyId}, ${c.keyId}, ${c.sealedMaster}, ${c.shards.device_prf}, ${c.shards.paper_guardian}, ${c.shards.server_guardian}, ${c.shards.nfc_card}, ${data.deviceCredential}, ${data.loginKey})`;
+    } catch (e) {
+      // Fail closed: until 0268 is live nothing is saved, and never as a weaker version.
+      if (isMissingFunction(e)) return { ok: false as const, error: "schema_pending" };
+      throw e;
     }
     const { notifyUser } = await import("@/lib/notifications.server");
     await notifyUser(context.userId, "recovery_vault_changed", { action: "saved" });
