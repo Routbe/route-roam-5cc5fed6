@@ -126,6 +126,7 @@ export type EnclaveErrorCode =
   | "invalid_config"
   | "invalid_mnemonic"
   | "master_key_required"
+  | "card_required"
   | "key_mismatch"
   | "no_device_key"
   | "internal";
