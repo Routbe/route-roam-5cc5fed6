@@ -146,8 +146,6 @@ function CardTap() {
       </main>
     );
   }
-  if (false as boolean) {
-
   if ("kind" in view && (view.kind === "confirm_step_up" || view.kind === "confirming_step_up")) {
     const busy = view.kind === "confirming_step_up";
     const tapBytes = { p: view.p, m: view.m };
