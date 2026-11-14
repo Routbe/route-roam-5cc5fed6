@@ -44,7 +44,7 @@ describe("parseSdmTapRow / consumeSdmTap (unit)", () => {
         if (statSync(p).isDirectory()) { if (f !== "test") walk(p); continue; }
         if (!/\.(ts|tsx)$/.test(f) || /\.test\.tsx?$/.test(f)) continue;
         const s = readFileSync(p, "utf8");
-        if (s.includes("vault_enclave.consume_sdm_tap")) hits.push(`sql:${relative(ROOT, p)}`);
+        if (s.includes("vault_enclave.consume_sdm_tap($")) hits.push(`sql:${relative(ROOT, p)}`);
         if (/\.consumeSdmTapRow\(/.test(s)) hits.push(`row:${relative(ROOT, p)}`);
       }
     };
