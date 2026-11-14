@@ -35,10 +35,12 @@ describe("ROUT's recovery factor", () => {
         device_prf: factorKeys("device_prf", new Uint8Array(32).fill(1), ALICE).publicKey,
         paper_guardian: createPaperFactor(ALICE).keys.publicKey,
         server_guardian: serverFactorPublicKey(ALICE, SECRET),
+        nfc_card: factorKeys("nfc_card", new Uint8Array(32).fill(4), ALICE).publicKey,
       },
     });
     expect(isOwnServerShard(ALICE, ceremony.shards.server_guardian, SECRET)).toBe(true);
     expect(isOwnServerShard(ALICE, ceremony.shards.paper_guardian, SECRET)).toBe(false);
+    expect(isOwnServerShard(ALICE, ceremony.shards.nfc_card as Uint8Array, SECRET)).toBe(false);
     expect(isOwnServerShard(BOB, ceremony.shards.server_guardian, SECRET)).toBe(false);
     expect(openServerShard(ceremony, ALICE, SECRET).length).toBeGreaterThan(0);
     expect(() => openServerShard(ceremony, ALICE, "Y".repeat(64))).toThrow();
