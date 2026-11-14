@@ -5,7 +5,11 @@
  * 2 (2-of-4) and version 3 (3-of-4) carry the same four shards, so the shard
  * set alone must never decide how a ceremony is opened.
  */
-import { VERSION_THRESHOLD, type CeremonyVersion, type CoreFactor, type RecoveryCeremony } from "@/lib/crypto-enclave/recovery-mpc";
+// Type-only: this module is also loaded on the UI thread, which must not pull in the crypto code.
+import type { CeremonyVersion, CoreFactor, RecoveryCeremony } from "@/lib/crypto-enclave/recovery-mpc";
+
+/** Mirror of recovery-mpc VERSION_THRESHOLD (a test keeps them equal). */
+export const WIRE_THRESHOLD: Readonly<Record<CeremonyVersion, number>> = Object.freeze({ 1: 2, 2: 2, 3: 3 });
 
 export type CeremonyWire = {
   version: CeremonyVersion;
@@ -90,7 +94,7 @@ export function ceremonyRowToWire(r: CeremonyRow): CeremonyWire {
 }
 
 /** Shares needed to open a ceremony of this wire form (3 for every ceremony made now). */
-export const wireThreshold = (w: CeremonyWire): number => VERSION_THRESHOLD[w.version];
+export const wireThreshold = (w: CeremonyWire): number => WIRE_THRESHOLD[w.version];
 
 /** Number of words typed so far (for enabling a button; the words themselves are not kept). */
 export function wordCount(text: string): number {
