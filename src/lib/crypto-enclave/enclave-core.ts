@@ -41,6 +41,7 @@ import { cardFactorKeys } from "./card-factor";
 import {
   RECOVERY_FACTORS,
   VERSION_FACTORS,
+  VERSION_THRESHOLD,
   RecoveryError,
   beginRecoveryCeremony,
   completeRecoveryCeremony,
@@ -50,6 +51,7 @@ import {
   paperFactorKeys,
   recoverMasterKey,
   type CeremonyDraft,
+  type CeremonyVersion,
   type RecoveryCeremony,
 } from "./recovery-mpc";
 
