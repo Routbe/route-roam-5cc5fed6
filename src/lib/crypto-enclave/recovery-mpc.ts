@@ -1,25 +1,31 @@
 /**
- * Master Key recovery: any 2 of 4 factors (version 2), or of the original 3
- * (version 1, still opened unchanged).
+ * Master Key recovery: any 3 of 4 factors (version 3, the only version made).
+ * Versions 1 (2-of-3) and 2 (2-of-4) are never created any more; a stored one
+ * still opens byte-for-byte as before so no member is ever locked out by an
+ * upgrade (Neon held none when version 3 was introduced).
  *
  * A fresh 256-bit ceremony key seals the Master Key (XChaCha20-Poly1305, AAD
- * bound to member + ceremony, and from version 2 also to the exact factor set).
- * The ceremony key, not the Master Key, is split with Shamir
- * (shamir-secret-sharing), one share per factor, threshold 2:
+ * bound to member + ceremony, and from version 2 also to the exact threshold
+ * and factor set). The ceremony key, not the Master Key, is split with Shamir
+ * (shamir-secret-sharing), one share per factor:
  *
  *   device_prf       key derived from the WebAuthn PRF output of a passkey
  *   nfc_card         key derived from the 32-byte secret in the ROUT Card's tap
  *                    URL fragment (card-factor.ts). The fragment never reaches
- *                    a server, so ROUT cannot derive this factor (version 2)
+ *                    a server, so ROUT cannot derive this factor
  *   server_guardian  key derived on the server from ROUT_RECOVERY_FACTOR_SECRET;
  *                    the server can open only this one shard, never two
  *   paper_guardian   key derived from a 24-word BIP39 phrase kept offline
  *
+ * Threshold 3 means: the server plus a stolen card is still one share short;
+ * any two factors together reveal nothing about the ceremony key (Shamir is
+ * information-theoretically hiding below the threshold).
+ *
  * Each share travels only as an `mpc` RVE1 envelope (pqc-envelope.ts, holder
  * "shard_factor") sealed to its own factor, with a context naming member,
  * ceremony and factor: a shard moved to another factor, member or ceremony no
- * longer opens. Any two factors reconstruct; one reveals nothing. Rotating the
- * factors means a new ceremony (new key, new id); the Master Key can stay.
+ * longer opens. Rotating the factors means a new ceremony (new key, new id);
+ * the Master Key can stay.
  *
  * Every failure while recovering throws the same RecoveryError. Ceremony keys
  * and shares are wiped in `finally`; callers wipe the Master Key they pass in
@@ -38,17 +44,22 @@ import { envelopeKeyId, generateRecipientKeys, keyId, openEnvelope, sealEnvelope
 /** Every factor a ceremony can carry, in share order. */
 export const RECOVERY_FACTORS = ["device_prf", "paper_guardian", "server_guardian", "nfc_card"] as const;
 export type RecoveryFactor = (typeof RECOVERY_FACTORS)[number];
-/** Factors every ceremony has (version 1 has exactly these). */
+/** Factors of the original version 1 ceremony. */
 export const CORE_FACTORS = ["device_prf", "paper_guardian", "server_guardian"] as const satisfies readonly RecoveryFactor[];
 export type CoreFactor = (typeof CORE_FACTORS)[number];
-/** Shares needed to rebuild, in every version. */
-export const RECOVERY_THRESHOLD = 2;
-export type CeremonyVersion = 1 | 2;
-/** Factor set of each version; version 2 adds the ROUT Card. */
+export type CeremonyVersion = 1 | 2 | 3;
+/** The only version new ceremonies get. */
+export const CURRENT_CEREMONY_VERSION = 3 as const;
+/** Factor set of each version. */
 export const VERSION_FACTORS: Readonly<Record<CeremonyVersion, readonly RecoveryFactor[]>> = Object.freeze({
   1: CORE_FACTORS,
-  2: ["device_prf", "paper_guardian", "server_guardian", "nfc_card"] as const,
+  2: RECOVERY_FACTORS,
+  3: RECOVERY_FACTORS,
 });
+/** Shares needed to rebuild, per version. */
+export const VERSION_THRESHOLD: Readonly<Record<CeremonyVersion, number>> = Object.freeze({ 1: 2, 2: 2, 3: 3 });
+/** Shares needed for every ceremony made now: 3 of 4. */
+export const RECOVERY_THRESHOLD = VERSION_THRESHOLD[CURRENT_CEREMONY_VERSION];
 /** Shares per version (one per factor). */
 export const versionShares = (version: CeremonyVersion) => VERSION_FACTORS[version].length;
 const MASTER_KEY_BYTES = 32;
@@ -57,16 +68,17 @@ const CEREMONY_ID_BYTES = 16;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 type CoreShards = Readonly<Record<CoreFactor, Uint8Array>>;
+type AllShards = Readonly<Record<RecoveryFactor, Uint8Array>>;
 
 export type RecoveryCeremony = {
   ceremonyId: string; // 32 hex
   memberId: string;
-  threshold: typeof RECOVERY_THRESHOLD;
   /** nonce (24) || XChaCha20-Poly1305(Master Key). */
   sealedMaster: Uint8Array;
 } & (
-  | { version: 1; /** One mpc RVE1 envelope per factor. */ shards: CoreShards & { readonly nfc_card?: undefined } }
-  | { version: 2; shards: CoreShards & { readonly nfc_card: Uint8Array } }
+  | { version: 1; threshold: 2; /** One mpc RVE1 envelope per factor. */ shards: CoreShards & { readonly nfc_card?: undefined } }
+  | { version: 2; threshold: 2; shards: AllShards }
+  | { version: 3; threshold: 3; shards: AllShards }
 );
 
 export class RecoveryError extends Error {
@@ -85,20 +97,20 @@ const wipe = (...arrays: (Uint8Array | undefined)[]) => {
 function checkMember(memberId: string) {
   if (!UUID_RE.test(memberId)) throw new TypeError("member_id_invalid");
 }
-/** Version 1 strings are byte-identical to the original 2-of-3 ceremony. */
+/** Version 1 and 2 strings are byte-identical to the ceremonies made before version 3. */
 const masterAad = (version: CeremonyVersion, memberId: string, ceremonyId: string) =>
   enc.encode(
     version === 1
       ? `rout.recovery.mpc.master.v1|${memberId}|${ceremonyId}`
-      : `rout.recovery.mpc.master.v2|${memberId}|${ceremonyId}|t=${RECOVERY_THRESHOLD}|${VERSION_FACTORS[2].join(",")}`,
+      : `rout.recovery.mpc.master.v${version}|${memberId}|${ceremonyId}|t=${VERSION_THRESHOLD[version]}|${VERSION_FACTORS[version].join(",")}`,
   );
 const shardContext = (version: CeremonyVersion, memberId: string, ceremonyId: string, factor: RecoveryFactor) =>
   `rout.recovery.mpc.shard.v${version}|${memberId}|${ceremonyId}|${factor}`;
 
 /** True when `c` is structurally a ceremony of its declared version (no crypto). */
 function wellFormed(c: RecoveryCeremony, memberId: string): boolean {
-  if (c.memberId !== memberId || c.threshold !== RECOVERY_THRESHOLD || !/^[0-9a-f]{32}$/.test(c.ceremonyId)) return false;
-  if (c.version !== 1 && c.version !== 2) return false;
+  if (c.version !== 1 && c.version !== 2 && c.version !== 3) return false;
+  if (c.memberId !== memberId || c.threshold !== VERSION_THRESHOLD[c.version] || !/^[0-9a-f]{32}$/.test(c.ceremonyId)) return false;
   const expected = VERSION_FACTORS[c.version];
   const shards = c.shards as Partial<Record<RecoveryFactor, Uint8Array>>;
   // Exactly the version's factors: no missing shard and no extra one.
@@ -144,26 +156,27 @@ export function paperFactorKeys(mnemonic: string, memberId: string): RecipientKe
 export type DraftFactorKeys = {
   paper_guardian: Uint8Array;
   server_guardian: Uint8Array;
-  /** The ROUT Card factor; present = version 2 (2-of-4), absent = version 1 (2-of-3). */
-  nfc_card?: Uint8Array;
+  /** The ROUT Card factor; required: every new ceremony is 3-of-4. */
+  nfc_card: Uint8Array;
 };
 
 /** A ceremony whose device shard is not sealed yet; holds no secret. */
 export type CeremonyDraft = {
-  version: CeremonyVersion;
+  version: typeof CURRENT_CEREMONY_VERSION;
   ceremonyId: string;
   memberId: string;
-  threshold: typeof RECOVERY_THRESHOLD;
+  threshold: 3;
   sealedMaster: Uint8Array;
-  shards: Readonly<{ paper_guardian: Uint8Array; server_guardian: Uint8Array; nfc_card?: Uint8Array }>;
+  shards: Readonly<{ paper_guardian: Uint8Array; server_guardian: Uint8Array; nfc_card: Uint8Array }>;
 };
 
 const hexKeys = (keys: readonly Uint8Array[]) => keys.map((k) => hex(k));
+const isKey = (k: unknown): k is Uint8Array => k instanceof Uint8Array && k.length > 0;
 
 /**
- * First half of a ceremony: seals the Master Key, splits the ceremony key and
- * seals the paper, server and (when given) card shards. The device share comes
- * back raw (one share reveals nothing) so it can be sealed once the passkey is
+ * First half of a ceremony: seals the Master Key, splits the ceremony key 3-of-4
+ * and seals the paper, server and card shards. The device share comes back raw
+ * (one share reveals nothing) so it can be sealed once the passkey is
  * available; the caller must wipe it, normally via completeRecoveryCeremony.
  */
 export async function beginRecoveryCeremony(input: {
@@ -174,10 +187,14 @@ export async function beginRecoveryCeremony(input: {
   const { masterKey, memberId, factorPublicKeys } = input;
   checkMember(memberId);
   if (masterKey.length !== MASTER_KEY_BYTES) throw new TypeError("master_key_must_be_32_bytes");
-  const version: CeremonyVersion = factorPublicKeys.nfc_card === undefined ? 1 : 2;
-  const given = [factorPublicKeys.paper_guardian, factorPublicKeys.server_guardian, ...(version === 2 ? [factorPublicKeys.nfc_card as Uint8Array] : [])];
+  // No card, no ceremony: a weaker 2-of-3 or 2-of-4 is never made.
+  if (!isKey(factorPublicKeys.nfc_card)) throw new TypeError("card_factor_required");
+  if (!isKey(factorPublicKeys.paper_guardian) || !isKey(factorPublicKeys.server_guardian)) throw new TypeError("factor_key_missing");
+  const given = [factorPublicKeys.paper_guardian, factorPublicKeys.server_guardian, factorPublicKeys.nfc_card];
   if (new Set(hexKeys(given)).size !== given.length) throw new TypeError("factor_keys_must_differ");
 
+  const version = CURRENT_CEREMONY_VERSION;
+  const threshold = VERSION_THRESHOLD[version] as 3;
   const ceremonyKey = randomBytes(32);
   const ceremonyId = hex(randomBytes(CEREMONY_ID_BYTES));
   let shares: Uint8Array[] = [];
@@ -189,7 +206,7 @@ export async function beginRecoveryCeremony(input: {
     sealedMaster.set(body, NONCE_BYTES);
 
     const factors = VERSION_FACTORS[version];
-    shares = await split(ceremonyKey, factors.length, RECOVERY_THRESHOLD);
+    shares = await split(ceremonyKey, factors.length, threshold);
     const seal = (factor: Exclude<RecoveryFactor, "device_prf">) => {
       const share = shares[factors.indexOf(factor)];
       const key = factorPublicKeys[factor];
@@ -198,13 +215,9 @@ export async function beginRecoveryCeremony(input: {
     };
     const deviceShare = shares[factors.indexOf("device_prf")];
     if (!deviceShare) throw new Error("split_failed");
-    const shards = Object.freeze({
-      paper_guardian: seal("paper_guardian"),
-      server_guardian: seal("server_guardian"),
-      ...(version === 2 ? { nfc_card: seal("nfc_card") } : {}),
-    });
+    const shards = Object.freeze({ paper_guardian: seal("paper_guardian"), server_guardian: seal("server_guardian"), nfc_card: seal("nfc_card") });
     shares = shares.filter((s) => s !== deviceShare); // the device share is the caller's now; the rest is wiped below
-    return { draft: { version, ceremonyId, memberId, threshold: RECOVERY_THRESHOLD, sealedMaster, shards }, deviceShare };
+    return { draft: { version, ceremonyId, memberId, threshold, sealedMaster, shards }, deviceShare };
   } finally {
     wipe(ceremonyKey, ...shares);
   }
@@ -213,8 +226,10 @@ export async function beginRecoveryCeremony(input: {
 /** Second half: seals the device share to the passkey factor and wipes it. */
 export function completeRecoveryCeremony(draft: CeremonyDraft, deviceShare: Uint8Array, devicePublicKey: Uint8Array): RecoveryCeremony {
   try {
+    if (draft.version !== CURRENT_CEREMONY_VERSION || draft.threshold !== VERSION_THRESHOLD[CURRENT_CEREMONY_VERSION]) throw new TypeError("draft_version_invalid");
+    if (!isKey(draft.shards.nfc_card)) throw new TypeError("card_shard_missing");
     const device = hex(keyId(devicePublicKey));
-    const others = [draft.shards.paper_guardian, draft.shards.server_guardian, ...(draft.shards.nfc_card ? [draft.shards.nfc_card] : [])];
+    const others = [draft.shards.paper_guardian, draft.shards.server_guardian, draft.shards.nfc_card];
     if (others.some((e) => hex(envelopeKeyId(e)) === device)) throw new TypeError("factor_keys_must_differ");
     const device_prf = sealEnvelope({
       kind: "mpc",
@@ -223,32 +238,33 @@ export function completeRecoveryCeremony(draft: CeremonyDraft, deviceShare: Uint
       plaintext: deviceShare,
       context: shardContext(draft.version, draft.memberId, draft.ceremonyId, "device_prf"),
     });
-    const base = { ceremonyId: draft.ceremonyId, memberId: draft.memberId, threshold: RECOVERY_THRESHOLD as typeof RECOVERY_THRESHOLD, sealedMaster: draft.sealedMaster };
-    const core = { device_prf, paper_guardian: draft.shards.paper_guardian, server_guardian: draft.shards.server_guardian };
-    if (draft.version === 2) {
-      if (!draft.shards.nfc_card) throw new TypeError("card_shard_missing");
-      return { ...base, version: 2, shards: Object.freeze({ ...core, nfc_card: draft.shards.nfc_card }) };
-    }
-    if (draft.shards.nfc_card) throw new TypeError("card_shard_unexpected");
-    return { ...base, version: 1, shards: Object.freeze(core) };
+    return {
+      ceremonyId: draft.ceremonyId,
+      memberId: draft.memberId,
+      sealedMaster: draft.sealedMaster,
+      version: 3,
+      threshold: 3,
+      shards: Object.freeze({ device_prf, paper_guardian: draft.shards.paper_guardian, server_guardian: draft.shards.server_guardian, nfc_card: draft.shards.nfc_card }),
+    };
   } finally {
     wipe(deviceShare);
   }
 }
 
-/** Both halves at once (every factor public key known up front; nfc_card optional). */
+/** Both halves at once (every factor public key known up front, card included). */
 export async function createRecoveryCeremony(input: {
   masterKey: Uint8Array;
   memberId: string;
   factorPublicKeys: Readonly<DraftFactorKeys & { device_prf: Uint8Array }>;
 }): Promise<RecoveryCeremony> {
   const { factorPublicKeys: k } = input;
-  const all = [k.device_prf, k.paper_guardian, k.server_guardian, ...(k.nfc_card ? [k.nfc_card] : [])];
+  if (!isKey(k.nfc_card)) throw new TypeError("card_factor_required");
+  const all = [k.device_prf, k.paper_guardian, k.server_guardian, k.nfc_card];
   if (new Set(hexKeys(all)).size !== all.length) throw new TypeError("factor_keys_must_differ");
   const { draft, deviceShare } = await beginRecoveryCeremony({
     masterKey: input.masterKey,
     memberId: input.memberId,
-    factorPublicKeys: { paper_guardian: k.paper_guardian, server_guardian: k.server_guardian, ...(k.nfc_card ? { nfc_card: k.nfc_card } : {}) },
+    factorPublicKeys: { paper_guardian: k.paper_guardian, server_guardian: k.server_guardian, nfc_card: k.nfc_card },
   });
   return completeRecoveryCeremony(draft, deviceShare, k.device_prf);
 }
@@ -265,7 +281,7 @@ export function openFactorShard(ceremony: RecoveryCeremony, memberId: string, fa
   }
 }
 
-/** Rebuilds the Master Key from at least two factors (secret keys or already-opened shares). */
+/** Rebuilds the Master Key from at least the ceremony's threshold of factors (secret keys or already-opened shares). */
 export async function recoverMasterKey(input: {
   ceremony: RecoveryCeremony;
   memberId: string;
@@ -280,8 +296,9 @@ export async function recoverMasterKey(input: {
   const shares: Uint8Array[] = openedFactors.map((f) => opened[f] as Uint8Array);
   let ceremonyKey: Uint8Array | undefined;
   try {
-    if (present.length + openedFactors.length < RECOVERY_THRESHOLD) throw new RecoveryError();
     if (!wellFormed(ceremony, memberId)) throw new RecoveryError();
+    // Below the threshold Shamir would still "combine" into noise; refuse before.
+    if (present.length + openedFactors.length < VERSION_THRESHOLD[ceremony.version]) throw new RecoveryError();
     const allowed = VERSION_FACTORS[ceremony.version];
     // A factor the ceremony does not carry (a card on a version 1 ceremony) is refused, not skipped.
     if ([...present, ...openedFactors].some((f) => !allowed.includes(f))) throw new RecoveryError();
