@@ -19,6 +19,7 @@
  * VaultDeniedError; reasons stay on the enclave's audit chain. Never log
  * PICCData, CMAC or UID.
  */
+import { consumeSdmTap } from "./sdm-tap-consume.server";
 import { z } from "zod";
 import { cardDivInput, decryptPiccData, diversifyAes128, uidIndex, verifySdmTap } from "@/lib/crypto-enclave/sdm-verifier";
 import type { VaultKek } from "./server-kek";
@@ -210,9 +211,11 @@ export async function verifyCardTap(input: unknown, deps: Deps = {}): Promise<Ta
 export async function publicCardProof(input: unknown, deps: Deps = {}): Promise<SdmCardState> {
   const port = deps.port ?? vaultPort();
   const grant = await verifyCardTap(input, { ...deps, port });
-  const state = await port.consumeSdmTap(null, grant, "public_proof");
-  if (!state) throw new VaultDeniedError();
-  return state;
+  try {
+    return await consumeSdmTap(port, null, grant, "public_proof");
+  } catch {
+    throw new VaultDeniedError();
+  }
 }
 
 /**
@@ -229,8 +232,11 @@ export async function confirmOwnCardTap(userId: string, input: unknown, deps: De
   } catch {
     return false;
   }
-  const state = await port.consumeSdmTap({ userId }, grant, "recovery_factor").catch(() => null);
-  return state === "active";
+  try {
+    return (await consumeSdmTap(port, { userId }, grant, "recovery_factor")) === "active";
+  } catch {
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------- activation (db/0246)
